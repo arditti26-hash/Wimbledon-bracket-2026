@@ -619,14 +619,20 @@ class LeaderboardParser(HTMLParser):
 
 def fetch_leaderboard_html():
     url = f'https://served.bracket.tennis/tournaments/{TOURNAMENT_SLUG}/leaderboard'
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (compatible)'})
-    with urllib.request.urlopen(req, timeout=12) as r:
+    req = urllib.request.Request(url, headers={
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    })
+    with urllib.request.urlopen(req, timeout=15) as r:
         return r.read().decode('utf-8', errors='replace')
 
 
 def fetch_scores_for(members):
     """Fetch and parse scores for the given members list from served.bracket.tennis."""
-    html = fetch_leaderboard_html()
+    try:
+        html = fetch_leaderboard_html()
+    except Exception:
+        return {m: {'atp': None, 'wta': None, 'combined': None} for m in members}
     parser = LeaderboardParser(members)
     parser.feed(html)
     scores = parser.scores
@@ -644,9 +650,9 @@ def fetch_scores_for(members):
             if s['combined'] is None: s['combined'] = int(m.group(3).replace(',',''))
 
     # Derive combined from atp+wta if still missing
-    for member in MEMBERS:
-        s = scores[member]
-        if s['combined'] is None and s['atp'] is not None and s['wta'] is not None:
+    for member in members:
+        s = scores.get(member, {})
+        if s.get('combined') is None and s.get('atp') is not None and s.get('wta') is not None:
             s['combined'] = s['atp'] + s['wta']
 
     return scores
