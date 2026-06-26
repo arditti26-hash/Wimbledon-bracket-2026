@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Wimbledon 2026 Group Bracket Dashboard — scrapes served.bracket.tennis"""
 
-import json, re, urllib.request
+import json, re, urllib.request, os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from html.parser import HTMLParser
 
-PORT = 8767
+PORT = int(os.environ.get('PORT', 8767))
 
 # ── Edit your group members here ─────────────────────────────────────────────
 MEMBERS = [
@@ -203,7 +203,52 @@ header {
   color: var(--muted); margin-top: 16px;
 }
 
-/* ── RESPONSIVE ── */
+/* ── SETTINGS MODAL ── */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    #modal-overlay.open { display: flex; }
+    #modal {
+      background: #fff; border-radius: 14px; width: 420px; max-width: 95vw;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.2); overflow: hidden;
+    }
+    .modal-header {
+      background: var(--green); color: #fff; padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-header h2 { font-size: 1rem; font-family: sans-serif; }
+    #modal-close { background: none; border: none; color: #fff; font-size: 1.4rem; cursor: pointer; line-height: 1; }
+    .modal-body { padding: 20px; }
+    .modal-body label { font-size: 0.8rem; font-family: sans-serif; color: var(--muted); display: block; margin-bottom: 6px; }
+    .input-row { display: flex; gap: 8px; margin-bottom: 14px; }
+    #username-input {
+      flex: 1; border: 1px solid var(--border); border-radius: 7px;
+      padding: 8px 12px; font-size: 0.9rem; font-family: sans-serif; outline: none;
+    }
+    #username-input:focus { border-color: var(--green); }
+    #add-btn {
+      background: var(--green); color: #fff; border: none; border-radius: 7px;
+      padding: 8px 16px; cursor: pointer; font-size: 0.9rem; font-family: sans-serif;
+    }
+    #members-list { list-style: none; margin-bottom: 16px; max-height: 200px; overflow-y: auto; }
+    #members-list li {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px; border-radius: 7px; font-family: sans-serif; font-size: 0.88rem;
+    }
+    #members-list li:nth-child(odd) { background: var(--bg); }
+    .remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 1rem; padding: 0 4px; }
+    .modal-footer { border-top: 1px solid var(--border); padding: 14px 20px; display: flex; gap: 8px; flex-wrap: wrap; }
+    #copy-btn, #save-btn {
+      flex: 1; padding: 9px; border-radius: 8px; cursor: pointer;
+      font-family: sans-serif; font-size: 0.88rem; border: none;
+    }
+    #copy-btn { background: var(--bg); border: 1px solid var(--border); color: var(--text); }
+    #save-btn { background: var(--green); color: #fff; font-weight: 600; }
+    .modal-hint { font-size: 0.72rem; font-family: sans-serif; color: var(--muted); width: 100%; text-align: center; }
+
+    /* ── RESPONSIVE ── */
 @media (max-width: 560px) {
   header { height: auto; padding: 12px 14px; flex-wrap: wrap; gap: 10px; }
   .lb-table th:nth-child(3), .lb-table td:nth-child(3),
@@ -223,8 +268,34 @@ header {
   </div>
   <div class="header-right">
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <button onclick="openModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:0.82rem;font-family:sans-serif;">⚙ Group</button>
   </div>
 </header>
+
+<!-- SETTINGS MODAL -->
+<div id="modal-overlay" onclick="closeModalOutside(event)">
+  <div id="modal">
+    <div class="modal-header">
+      <h2>⚙ Manage Group Members</h2>
+      <button id="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label>Add a served.bracket.tennis username</label>
+      <div class="input-row">
+        <input id="username-input" type="text" placeholder="e.g. jackthesnack21"
+          onkeydown="if(event.key==='Enter') addMember()" />
+        <button id="add-btn" onclick="addMember()">Add</button>
+      </div>
+      <label>Group members (<span id="member-count">0</span>)</label>
+      <ul id="members-list"></ul>
+    </div>
+    <div class="modal-footer">
+      <button id="copy-btn" onclick="copyShareLink()">🔗 Copy share link</button>
+      <button id="save-btn" onclick="saveAndClose()">Save &amp; Refresh</button>
+      <div class="modal-hint">Usernames must match exactly what's on served.bracket.tennis</div>
+    </div>
+  </div>
+</div>
 
 <div class="wrap">
   <div class="status-bar">
@@ -293,10 +364,39 @@ const COLORS = __COLORS_JSON__;
 const SLUG   = '__SLUG__';
 let currentTab = 'combined';
 let allData = null;
+let members = [];
 
+// ── MEMBER STORAGE ────────────────────────────────────────────────────────────
+function loadMembers() {
+  const hash = location.hash.slice(1);
+  if (hash) {
+    try {
+      const fromUrl = JSON.parse(atob(hash));
+      if (Array.isArray(fromUrl) && fromUrl.length > 0) {
+        localStorage.setItem('wim_members', JSON.stringify(fromUrl));
+        return fromUrl;
+      }
+    } catch(e) {}
+  }
+  try { return JSON.parse(localStorage.getItem('wim_members') || '[]'); }
+  catch(e) { return []; }
+}
+
+function saveMembers() {
+  localStorage.setItem('wim_members', JSON.stringify(members));
+  history.replaceState(null, '', '#' + btoa(JSON.stringify(members)));
+}
+
+// ── DATA FETCH ────────────────────────────────────────────────────────────────
 async function loadData() {
+  if (members.length === 0) {
+    showEmpty();
+    return;
+  }
+  document.getElementById('status-text').textContent = 'Fetching scores…';
   try {
-    const res = await fetch('/api/data');
+    const params = encodeURIComponent(members.join(','));
+    const res = await fetch('/api/data?members=' + params);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     allData = await res.json();
     render();
@@ -306,6 +406,7 @@ async function loadData() {
   }
 }
 
+// ── RENDER ────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
@@ -338,11 +439,11 @@ function render() {
   }, 1);
 
   const tbody = document.getElementById('lb-body');
-
   const hasAny = players.some(p => p.combined !== null || p.atp !== null);
+
   if (!hasAny) {
     tbody.innerHTML = `<tr><td colspan="5" style="padding:36px;text-align:center;color:#aaa;font-family:sans-serif">
-      Scores not yet available — make sure your usernames on served.bracket.tennis match exactly.
+      No scores found yet — usernames must match exactly what's on served.bracket.tennis.
     </td></tr>`;
     document.getElementById('status-text').textContent = 'No scores found · ' + allData.updated;
     return;
@@ -350,36 +451,94 @@ function render() {
 
   tbody.innerHTML = sorted.map((p, i) => {
     const rank  = i + 1;
-    const c     = COLORS[p.color_idx] || COLORS[0];
+    const c     = COLORS[String(p.color_idx)] || COLORS['0'];
     const score = tab === 'atp' ? p.atp : tab === 'wta' ? p.wta : p.combined;
     const pct   = score != null ? Math.round((score / maxScore) * 100) : 0;
     const bracketUrl = `https://served.bracket.tennis/tournaments/${SLUG}/combined/brackets/${encodeURIComponent(p.username)}`;
-
-    const atpPill  = p.atp  != null ? `<span class="score-pill pill-atp">${p.atp.toLocaleString()}</span>`   : `<span class="score-pill pill-none">–</span>`;
-    const wtaPill  = p.wta  != null ? `<span class="score-pill pill-wta">${p.wta.toLocaleString()}</span>`   : `<span class="score-pill pill-none">–</span>`;
+    const atpPill  = p.atp  != null ? `<span class="score-pill pill-atp">${p.atp.toLocaleString()}</span>`  : `<span class="score-pill pill-none">–</span>`;
+    const wtaPill  = p.wta  != null ? `<span class="score-pill pill-wta">${p.wta.toLocaleString()}</span>`  : `<span class="score-pill pill-none">–</span>`;
     const combPill = p.combined != null ? `<span class="score-pill pill-combined">${p.combined.toLocaleString()}</span>` : `<span class="score-pill pill-none">–</span>`;
-
     return `<tr>
-      <td class="rank-cell ${rank<=3?'gold':''}">${rank<=3 ? ['🥇','🥈','🥉'][rank-1] : rank}</td>
+      <td class="rank-cell ${rank<=3?'gold':''}">${rank<=3?['🥇','🥈','🥉'][rank-1]:rank}</td>
       <td>
         <div class="player-name"><a class="name-link" href="${bracketUrl}" target="_blank" rel="noopener" style="color:${c.primary}">${esc(p.username)}</a></div>
         <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${c.primary}"></div></div>
       </td>
-      <td>${atpPill}</td>
-      <td>${wtaPill}</td>
-      <td class="right">${combPill}</td>
+      <td>${atpPill}</td><td>${wtaPill}</td><td class="right">${combPill}</td>
     </tr>`;
   }).join('');
 
   document.getElementById('status-text').textContent = `Live · last updated ${allData.updated}`;
 }
 
+// ── EMPTY STATE ───────────────────────────────────────────────────────────────
+function showEmpty() {
+  document.getElementById('lb-body').innerHTML = `<tr><td colspan="5" style="padding:48px;text-align:center;font-family:sans-serif;color:#aaa;">
+    <div style="font-size:2rem;margin-bottom:10px">👥</div>
+    <div style="font-size:1rem;color:#006b3c;font-weight:600;margin-bottom:6px">Set up your group</div>
+    <div style="font-size:0.85rem;margin-bottom:16px">Click <strong>⚙ Group</strong> in the header to add your served.bracket.tennis usernames.</div>
+  </td></tr>`;
+  document.getElementById('status-text').textContent = 'No group members added yet';
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openModal() {
+  renderMembersList();
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('username-input').focus(), 100);
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
+
+function addMember() {
+  const input = document.getElementById('username-input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (!members.find(m => m.toLowerCase() === val.toLowerCase())) members.push(val);
+  input.value = '';
+  renderMembersList();
+}
+
+function removeMember(idx) { members.splice(idx, 1); renderMembersList(); }
+
+function renderMembersList() {
+  const ul = document.getElementById('members-list');
+  ul.innerHTML = '';
+  document.getElementById('member-count').textContent = members.length;
+  members.forEach((m, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${esc(m)}</span><button class="remove-btn" onclick="removeMember(${i})">✕</button>`;
+    ul.appendChild(li);
+  });
+}
+
+function saveAndClose() {
+  saveMembers();
+  closeModal();
+  loadData();
+}
+
+async function copyShareLink() {
+  saveMembers();
+  const link = location.origin + location.pathname + '#' + btoa(JSON.stringify(members));
+  try {
+    await navigator.clipboard.writeText(link);
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '🔗 Copy share link', 2000);
+  } catch(e) { prompt('Copy this link:', link); }
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── INIT ──────────────────────────────────────────────────────────────────────
+members = loadMembers();
+renderMembersList();
 loadData();
-setInterval(loadData, 5 * 60 * 1000); // refresh every 5 minutes
+setInterval(loadData, 5 * 60 * 1000);
 </script>
 </body>
 </html>"""
@@ -465,16 +624,16 @@ def fetch_leaderboard_html():
         return r.read().decode('utf-8', errors='replace')
 
 
-def fetch_scores():
-    """Fetch and parse scores for all MEMBERS from served.bracket.tennis."""
+def fetch_scores_for(members):
+    """Fetch and parse scores for the given members list from served.bracket.tennis."""
     html = fetch_leaderboard_html()
-    parser = LeaderboardParser(MEMBERS)
+    parser = LeaderboardParser(members)
     parser.feed(html)
     scores = parser.scores
 
     # Fallback: also try regex scan on raw HTML for "username ... NNN" patterns
     text = re.sub(r'<[^>]+>', ' ', html)
-    for member in MEMBERS:
+    for member in members:
         s = scores[member]
         # Try to find combined pattern: username ... NNN+NNN=NNN
         pattern = re.escape(member) + r'[^<\n]*?(\d[\d,]+)\s*\+\s*(\d[\d,]+)\s*=\s*(\d[\d,]+)'
@@ -493,12 +652,17 @@ def fetch_scores():
     return scores
 
 
-def get_data():
-    scores = fetch_scores()
+def get_data(members=None):
+    if members is None:
+        members = MEMBERS
+    if not members:
+        return {'players': [], 'updated': datetime.now().strftime('%b %d, %Y · %I:%M:%S %p')}
+
+    scores = fetch_scores_for(members)
 
     players = []
-    for i, member in enumerate(MEMBERS):
-        s = scores[member]
+    for i, member in enumerate(members):
+        s = scores.get(member, {'atp': None, 'wta': None, 'combined': None})
         players.append({
             'username': member,
             'atp':      s['atp'],
@@ -507,7 +671,6 @@ def get_data():
             'color_idx': i % len(COLORS),
         })
 
-    # Sort by combined (desc), then atp
     players.sort(key=lambda p: (-(p['combined'] or -1), -(p['atp'] or -1)))
 
     return {
@@ -535,7 +698,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/api/data'):
             try:
-                data = get_data()
+                # Parse ?members=user1,user2,user3 from query string
+                members = None
+                if '?' in self.path:
+                    qs = self.path.split('?', 1)[1]
+                    for part in qs.split('&'):
+                        if part.startswith('members='):
+                            val = urllib.request.unquote(part[8:])
+                            members = [m.strip() for m in val.split(',') if m.strip()]
+                data = get_data(members)
                 body = json.dumps(data).encode()
                 self.send_body(body, 'application/json')
             except Exception as e:
@@ -553,4 +724,4 @@ if __name__ == '__main__':
     print(f'   Tracking {len(MEMBERS)} players: {", ".join(MEMBERS)}')
     print(f'   Refreshes every 5 minutes from served.bracket.tennis')
     print(f'   Press Ctrl+C to stop\n')
-    HTTPServer(('', PORT), Handler).serve_forever()
+    HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
