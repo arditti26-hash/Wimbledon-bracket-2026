@@ -528,15 +528,6 @@ function render() {
   }, 1);
 
   const tbody = document.getElementById('lb-body');
-  const hasAny = players.some(p => p.combined !== null || p.atp !== null);
-
-  if (!hasAny) {
-    tbody.innerHTML = `<tr><td colspan="5" style="padding:36px;text-align:center;color:#aaa;font-family:sans-serif">
-      No scores found yet — usernames must match exactly what's on served.bracket.tennis.
-    </td></tr>`;
-    document.getElementById('status-text').textContent = 'No scores found · ' + allData.updated;
-    return;
-  }
 
   tbody.innerHTML = sorted.map((p, i) => {
     const rank  = i + 1;
