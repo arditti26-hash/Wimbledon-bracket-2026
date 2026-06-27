@@ -31,22 +31,26 @@ HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wimbledon 2026 · Group Bracket</title>
+<title>Wimbledon 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --green:  #00512e;
-  --green2: #006b3c;
-  --purple: #4b006e;
-  --gold:   #c9a94b;
-  --bg:     #f5f2eb;
-  --card:   #ffffff;
-  --text:   #1a1a1a;
-  --muted:  #6b6b6b;
-  --border: #ddd8cc;
+  --green:   #00512e;
+  --green2:  #006b3c;
+  --green3:  #004225;
+  --purple:  #4b006e;
+  --gold:    #c9a94b;
+  --cream:   #fdf6e3;
+  --cream2:  #f5edd4;
+  --berry:   #c0392b;
+  --bg:      #f5f2eb;
+  --card:    #ffffff;
+  --text:    #1a1a1a;
+  --muted:   #6b6b6b;
+  --border:  #ddd8cc;
 }
 
 body {
@@ -56,45 +60,86 @@ body {
   min-height: 100vh;
 }
 
-/* ── HEADER ── */
-header {
-  background: var(--green);
+/* ── TOP NAV BAR ── */
+.topbar {
+  background: var(--green3);
   color: #fff;
   padding: 0 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 68px;
-  border-bottom: 4px solid var(--gold);
-  position: sticky; top: 0; z-index: 10;
+  height: 52px;
+  border-bottom: 3px solid var(--purple);
+  position: sticky; top: 0; z-index: 20;
 }
-.logo { display: flex; align-items: center; gap: 14px; }
-.logo-badge {
-  width: 44px; height: 44px; border-radius: 50%;
-  background: var(--gold); display: flex; align-items: center;
-  justify-content: center; font-size: 22px; flex-shrink: 0;
-}
-.logo h1 {
-  font-family: 'EB Garamond', Georgia, serif;
-  font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; line-height: 1.2;
-}
-.logo span { font-size: 0.72rem; opacity: 0.65; font-family: sans-serif; }
-.header-right { display: flex; align-items: center; gap: 10px; }
+.topbar-left { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; font-family: sans-serif; opacity: 0.85; }
+.topbar-flag { font-size: 1rem; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
 .live-badge {
-  display: flex; align-items: center; gap: 7px;
+  display: flex; align-items: center; gap: 6px;
   background: rgba(201,169,75,0.15); border: 1px solid rgba(201,169,75,0.4);
-  padding: 5px 13px; border-radius: 100px;
+  padding: 4px 12px; border-radius: 100px;
   font-size: 11px; font-weight: 700; color: var(--gold); letter-spacing: 1px;
   font-family: sans-serif;
 }
-.live-dot {
-  width: 7px; height: 7px; background: var(--gold); border-radius: 50%;
-  animation: blink 1.5s ease-in-out infinite;
-}
+.live-dot { width: 6px; height: 6px; background: var(--gold); border-radius: 50%; animation: blink 1.5s ease-in-out infinite; }
 @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
 
+/* ── HERO HEADER ── */
+.hero {
+  background: linear-gradient(160deg, var(--green3) 0%, var(--green) 50%, var(--green2) 100%);
+  color: #fff;
+  text-align: center;
+  padding: 40px 20px 36px;
+  border-bottom: 4px solid var(--gold);
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(201,169,75,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 50%, rgba(75,0,110,0.12) 0%, transparent 60%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 60px);
+  pointer-events: none;
+}
+.hero-crown { font-size: 2.8rem; margin-bottom: 6px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); }
+.hero-title {
+  font-family: 'Playfair Display', 'EB Garamond', Georgia, serif;
+  font-size: 2.8rem; font-weight: 900; letter-spacing: 0.02em;
+  line-height: 1.1; margin-bottom: 4px;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+.hero-title span { color: var(--gold); }
+.hero-subtitle {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 1.1rem; font-style: italic; opacity: 0.8;
+  letter-spacing: 0.08em; margin-bottom: 18px;
+}
+.hero-pills { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.hero-pill {
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 100px; padding: 5px 14px;
+  font-size: 0.78rem; font-family: sans-serif; letter-spacing: 0.04em;
+}
+.hero-pill.gold { background: rgba(201,169,75,0.2); border-color: rgba(201,169,75,0.5); color: var(--gold); }
+
+/* ── STRAWBERRIES & CREAM BANNER ── */
+.sc-banner {
+  background: linear-gradient(90deg, var(--cream) 0%, var(--cream2) 50%, var(--cream) 100%);
+  border-bottom: 1px solid #e8dfc0;
+  padding: 10px 20px;
+  text-align: center;
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 0.95rem; color: #5a3e1b;
+  letter-spacing: 0.04em;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+}
+.sc-banner .berry { color: var(--berry); }
+
 /* ── MAIN ── */
-.wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 60px; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 60px; }
 
 /* ── STATUS BAR ── */
 .status-bar {
@@ -129,7 +174,7 @@ header {
   display: flex; align-items: center; justify-content: space-between;
 }
 .card-title {
-  font-family: 'EB Garamond', Georgia, serif;
+  font-family: 'Playfair Display', 'EB Garamond', Georgia, serif;
   font-size: 1.1rem; font-weight: 700; color: var(--green);
 }
 .card-sub { font-size: 0.74rem; font-family: sans-serif; color: var(--muted); margin-top: 3px; }
@@ -258,19 +303,36 @@ header {
 </head>
 <body>
 
-<header>
-  <div class="logo">
-    <div class="logo-badge">🎾</div>
-    <div>
-      <h1>Wimbledon 2026 · Bracket Pick'em</h1>
-      <span>served.bracket.tennis · live standings</span>
-    </div>
+<!-- TOP NAV -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-flag">🇬🇧</span>
+    <span>The Championships · All England Club · London</span>
   </div>
-  <div class="header-right">
+  <div class="topbar-right">
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
-    <button onclick="openModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:0.82rem;font-family:sans-serif;">⚙ Group</button>
+    <button onclick="openModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 13px;cursor:pointer;font-size:0.78rem;font-family:sans-serif;">⚙ Group</button>
   </div>
-</header>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-crown">🏆</div>
+  <div class="hero-title">Wimbledon <span>2026</span></div>
+  <div class="hero-subtitle">The Championships · Bracket Pick'em</div>
+  <div class="hero-pills">
+    <span class="hero-pill">🎾 Men's &amp; Women's Draw</span>
+    <span class="hero-pill gold">🏅 served.bracket.tennis</span>
+    <span class="hero-pill">🇬🇧 SW19 · June 30 – July 13</span>
+  </div>
+</div>
+
+<!-- STRAWBERRIES & CREAM -->
+<div class="sc-banner">
+  <span class="berry">🍓</span>
+  <span>Strawberries &amp; Cream · Est. 1877 · The Tradition Continues</span>
+  <span class="berry">🍓</span>
+</div>
 
 <!-- SETTINGS MODAL -->
 <div id="modal-overlay" onclick="closeModalOutside(event)">
@@ -336,8 +398,8 @@ header {
   <div class="card">
     <div class="card-header">
       <div>
-        <div class="card-title">Scoring Rules</div>
-        <div class="card-sub">Points per correct pick · served.bracket.tennis</div>
+        <div class="card-title">🏆 Scoring Rules</div>
+        <div class="card-sub">Points per correct pick · served.bracket.tennis · The Championships 2026</div>
       </div>
     </div>
     <div class="rules-grid">
@@ -401,7 +463,7 @@ async function loadData() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     allData = await res.json();
     render();
-    document.getElementById('footer').textContent = 'Scores from served.bracket.tennis · Updated: ' + allData.updated;
+    document.getElementById('footer').innerHTML = '🎾 &nbsp;Wimbledon 2026 · The Championships · All England Club &nbsp;🍓&nbsp; Scores from served.bracket.tennis · Updated: ' + allData.updated;
   } catch(e) {
     document.getElementById('status-text').textContent = 'Error loading data — ' + e.message;
   }
