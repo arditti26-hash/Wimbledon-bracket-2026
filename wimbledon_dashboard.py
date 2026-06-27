@@ -341,18 +341,19 @@ header {
       </div>
     </div>
     <div class="rules-grid">
-      <div class="rule-item"><div class="rule-round">Round 1</div><div class="rule-pts">10</div><div class="rule-note">pts / pick</div></div>
-      <div class="rule-item"><div class="rule-round">Round 2</div><div class="rule-pts">20</div><div class="rule-note">pts / pick</div></div>
-      <div class="rule-item"><div class="rule-round">Round 3</div><div class="rule-pts">30</div><div class="rule-note">pts / pick</div></div>
-      <div class="rule-item"><div class="rule-round">Round 4</div><div class="rule-pts">40</div><div class="rule-note">pts / pick</div></div>
-      <div class="rule-item"><div class="rule-round">Quarters</div><div class="rule-pts">60</div><div class="rule-note">pts / pick</div></div>
-      <div class="rule-item"><div class="rule-round">Semis</div><div class="rule-pts">80</div><div class="rule-note">pts / pick</div></div>
-      <div class="rule-item"><div class="rule-round">Final</div><div class="rule-pts">100</div><div class="rule-note">pts / champion</div></div>
+      <div class="rule-item"><div class="rule-round">Round 1</div><div class="rule-pts">10</div><div class="rule-note">64 matches</div></div>
+      <div class="rule-item"><div class="rule-round">Round 2</div><div class="rule-pts">20</div><div class="rule-note">32 matches</div></div>
+      <div class="rule-item"><div class="rule-round">Round 3</div><div class="rule-pts">30</div><div class="rule-note">16 matches</div></div>
+      <div class="rule-item"><div class="rule-round">Round 4</div><div class="rule-pts">40</div><div class="rule-note">8 matches</div></div>
+      <div class="rule-item"><div class="rule-round">Quarters</div><div class="rule-pts">60</div><div class="rule-note">4 matches</div></div>
+      <div class="rule-item"><div class="rule-round">Semis</div><div class="rule-pts">80</div><div class="rule-note">2 matches</div></div>
+      <div class="rule-item"><div class="rule-round">Final</div><div class="rule-pts">100</div><div class="rule-note">1 match</div></div>
     </div>
     <div class="rules-bonuses">
-      <div class="bonus-tag">🏆 Unseeded upset = double points</div>
-      <div class="bonus-tag">📊 Seed gap bonus: +1pt per seed difference</div>
-      <div class="bonus-tag">🔢 Tiebreaker: closest to total games in men's final</div>
+      <div class="bonus-tag">🎾 Points apply to both Men's &amp; Women's draws</div>
+      <div class="bonus-tag">🏆 Unseeded upset: correct pick = double points</div>
+      <div class="bonus-tag">📊 Seed gap bonus: +1 pt per seed difference on correct upset pick</div>
+      <div class="bonus-tag">🔢 Tiebreaker: closest guess to total games in men's final</div>
     </div>
   </div>
 
