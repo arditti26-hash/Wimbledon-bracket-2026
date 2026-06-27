@@ -56,6 +56,11 @@ HTML = r"""<!DOCTYPE html>
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   background: var(--bg);
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(0, 80, 40, 0.022) 0px, rgba(0, 80, 40, 0.022) 24px,
+    transparent 24px, transparent 48px
+  );
   color: var(--text);
   min-height: 100vh;
 }
@@ -87,10 +92,10 @@ body {
 
 /* ── HERO HEADER ── */
 .hero {
-  background: linear-gradient(160deg, var(--green3) 0%, var(--green) 50%, var(--green2) 100%);
+  background: linear-gradient(160deg, var(--green3) 0%, var(--green) 55%, var(--green2) 100%);
   color: #fff;
   text-align: center;
-  padding: 40px 20px 36px;
+  padding: 22px 20px 20px;
   border-bottom: 4px solid var(--gold);
   position: relative;
   overflow: hidden;
@@ -99,44 +104,59 @@ body {
   content: '';
   position: absolute; inset: 0;
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(201,169,75,0.08) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 50%, rgba(75,0,110,0.12) 0%, transparent 60%),
-    repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 60px);
+    repeating-linear-gradient(
+      180deg,
+      rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 18px,
+      rgba(0,0,0,0.04) 18px, rgba(0,0,0,0.04) 36px
+    ),
+    radial-gradient(ellipse at 15% 50%, rgba(201,169,75,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 50%, rgba(75,0,110,0.10) 0%, transparent 55%);
   pointer-events: none;
 }
-.hero-crown { font-size: 2.8rem; margin-bottom: 6px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); }
+.hero-inner { position: relative; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
+.hero-trophy { font-size: 2rem; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35)); flex-shrink: 0; }
+.hero-text { text-align: left; }
 .hero-title {
   font-family: 'Playfair Display', 'EB Garamond', Georgia, serif;
-  font-size: 2.8rem; font-weight: 900; letter-spacing: 0.02em;
-  line-height: 1.1; margin-bottom: 4px;
-  text-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  font-size: 1.9rem; font-weight: 900; letter-spacing: 0.02em;
+  line-height: 1.1; text-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
 .hero-title span { color: var(--gold); }
 .hero-subtitle {
   font-family: 'EB Garamond', Georgia, serif;
-  font-size: 1.1rem; font-style: italic; opacity: 0.8;
-  letter-spacing: 0.08em; margin-bottom: 18px;
+  font-size: 0.88rem; font-style: italic; opacity: 0.72;
+  letter-spacing: 0.06em; margin-top: 2px;
 }
-.hero-pills { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.hero-pills { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
 .hero-pill {
-  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 100px; padding: 5px 14px;
-  font-size: 0.78rem; font-family: sans-serif; letter-spacing: 0.04em;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 100px; padding: 4px 12px;
+  font-size: 0.73rem; font-family: sans-serif; letter-spacing: 0.03em;
 }
-.hero-pill.gold { background: rgba(201,169,75,0.2); border-color: rgba(201,169,75,0.5); color: var(--gold); }
+.hero-pill.gold { background: rgba(201,169,75,0.18); border-color: rgba(201,169,75,0.45); color: var(--gold); }
 
-/* ── STRAWBERRIES & CREAM BANNER ── */
+/* ── GRASS / STRAWBERRIES & CREAM ACCENT STRIP ── */
 .sc-banner {
   background: linear-gradient(90deg, var(--cream) 0%, var(--cream2) 50%, var(--cream) 100%);
-  border-bottom: 1px solid #e8dfc0;
-  padding: 10px 20px;
-  text-align: center;
+  border-bottom: 1px solid #e0d5b0;
+  padding: 7px 20px;
+  display: flex; align-items: center; justify-content: center; gap: 16px;
   font-family: 'EB Garamond', Georgia, serif;
-  font-size: 0.95rem; color: #5a3e1b;
-  letter-spacing: 0.04em;
-  display: flex; align-items: center; justify-content: center; gap: 12px;
+  font-size: 0.82rem; color: #5a3e1b; letter-spacing: 0.05em;
 }
-.sc-banner .berry { color: var(--berry); }
+.sc-grass {
+  display: flex; gap: 3px; align-items: flex-end;
+}
+.sc-grass span {
+  display: inline-block; width: 3px; border-radius: 2px 2px 0 0;
+  background: var(--green2); opacity: 0.7;
+}
+.sc-grass span:nth-child(1) { height: 10px; }
+.sc-grass span:nth-child(2) { height: 14px; }
+.sc-grass span:nth-child(3) { height: 9px; }
+.sc-grass span:nth-child(4) { height: 13px; }
+.sc-grass span:nth-child(5) { height: 11px; }
+.sc-banner .berry { color: var(--berry); font-size: 1rem; }
 
 /* ── MAIN ── */
 .wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 60px; }
@@ -317,9 +337,13 @@ body {
 
 <!-- HERO -->
 <div class="hero">
-  <div class="hero-crown">🏆</div>
-  <div class="hero-title">Wimbledon <span>2026</span></div>
-  <div class="hero-subtitle">The Championships · Bracket Pick'em</div>
+  <div class="hero-inner">
+    <div class="hero-trophy">🏆</div>
+    <div class="hero-text">
+      <div class="hero-title">Wimbledon <span>2026</span></div>
+      <div class="hero-subtitle">The Championships · Bracket Pick'em</div>
+    </div>
+  </div>
   <div class="hero-pills">
     <span class="hero-pill">🎾 Men's &amp; Women's Draw</span>
     <span class="hero-pill gold">🏅 served.bracket.tennis</span>
@@ -327,11 +351,13 @@ body {
   </div>
 </div>
 
-<!-- STRAWBERRIES & CREAM -->
+<!-- GRASS / S&C STRIP -->
 <div class="sc-banner">
+  <div class="sc-grass"><span></span><span></span><span></span><span></span><span></span></div>
   <span class="berry">🍓</span>
-  <span>Strawberries &amp; Cream · Est. 1877 · The Tradition Continues</span>
+  <span>Strawberries &amp; Cream · SW19</span>
   <span class="berry">🍓</span>
+  <div class="sc-grass"><span></span><span></span><span></span><span></span><span></span></div>
 </div>
 
 <!-- SETTINGS MODAL -->
