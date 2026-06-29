@@ -760,6 +760,43 @@ body {
   })();
   </script>
 
+  <!-- AI DAILY SUMMARY -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">🎙 Today at Wimbledon</div>
+        <div class="card-sub" id="summary-updated">AI recap · refreshes hourly</div>
+      </div>
+    </div>
+    <div id="summary-body" style="padding:20px 24px;font-family:'EB Garamond',Georgia,serif;font-size:1.05rem;line-height:1.7;color:#2a2a2a;min-height:80px;">
+      <span style="color:#aaa;font-family:sans-serif;font-size:0.85rem;">Loading today's recap…</span>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    function loadSummary() {
+      fetch('/api/summary')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          var el = document.getElementById('summary-body');
+          var upd = document.getElementById('summary-updated');
+          if (data.error === 'no_key') {
+            el.innerHTML = '<span style="color:#aaa;font-family:sans-serif;font-size:0.82rem;">Add <code style="background:#f0f0f0;padding:1px 5px;border-radius:3px;">ANTHROPIC_API_KEY</code> to Render environment variables to enable AI recaps.</span>';
+          } else if (data.error) {
+            el.innerHTML = '<span style="color:#aaa;font-family:sans-serif;font-size:0.82rem;">Recap unavailable — ' + data.error + '</span>';
+          } else if (data.summary) {
+            el.textContent = data.summary;
+            if (data.updated) upd.textContent = 'AI recap · ' + data.updated;
+          }
+        })
+        .catch(function(){});
+    }
+    loadSummary();
+    setInterval(loadSummary, 60 * 60 * 1000);
+  })();
+  </script>
+
   <!-- SCORING RULES -->
   <div class="card">
     <div class="card-header">
@@ -1359,6 +1396,114 @@ _STATIC_ODDS = {
 }
 
 
+# ── AI daily summary ─────────────────────────────────────────────────────────
+
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+
+_summary_cache    = {}
+_summary_cache_ts = 0
+
+
+def _fetch_espn_wimbledon_news():
+    """Grab text from ESPN Wimbledon scoreboard/news page for context."""
+    try:
+        url = 'https://www.espn.com/tennis/story/_/id/49072110/wimbledon-championship-odds-tennis-2026'
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            html = r.read().decode('utf-8', errors='replace')
+        # Strip tags, collapse whitespace, take first 2000 chars
+        text = re.sub(r'<[^>]+>', ' ', html)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text[:2000]
+    except Exception:
+        return ''
+
+
+def _fetch_bbc_wimbledon_news():
+    """Grab BBC Sport Wimbledon headlines for context."""
+    try:
+        url = 'https://www.bbc.com/sport/tennis/wimbledon'
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            html = r.read().decode('utf-8', errors='replace')
+        text = re.sub(r'<[^>]+>', ' ', html)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text[:2000]
+    except Exception:
+        return ''
+
+
+def _build_results_text():
+    """Summarise today's completed matches from the bracket data."""
+    lines = []
+    for tour, label in [('atp', "Men's"), ('wta', "Women's")]:
+        try:
+            _, results, _ = _get_tournament_data(tour, MEMBERS)
+            for (rnd, pos), r in results.items():
+                round_name = {1:'R1',2:'R2',3:'R3',4:'R4',5:'QF',6:'SF',7:'Final'}.get(rnd, f'R{rnd}')
+                lines.append(f"{label} {round_name}: {r['winner']} def. {r.get('loser','?')}")
+        except Exception:
+            pass
+    return '\n'.join(lines[:30]) if lines else 'No completed matches yet.'
+
+
+def _fetch_ai_summary():
+    """
+    Call Claude Haiku to write a short Wimbledon daily wrap.
+    Cached 1 hour. Returns {'summary': str, 'updated': str, 'error': str|None}
+    """
+    global _summary_cache, _summary_cache_ts
+    now = time.time()
+    if _summary_cache and now - _summary_cache_ts < 3600:
+        return _summary_cache
+
+    if not ANTHROPIC_API_KEY:
+        result = {'summary': '', 'updated': '', 'error': 'no_key'}
+        _summary_cache = result
+        _summary_cache_ts = now
+        return result
+
+    results_text = _build_results_text()
+    news_text    = _fetch_bbc_wimbledon_news() or _fetch_espn_wimbledon_news()
+    today        = datetime.now().strftime('%B %d, %Y')
+
+    prompt = (
+        f"You are a witty tennis writer covering Wimbledon {today}. "
+        f"Write a punchy 3-4 sentence daily recap of today's action at Wimbledon. "
+        f"Focus on the most interesting results, upsets, and storylines. "
+        f"Keep it conversational and fun — like a group chat message to tennis fans.\n\n"
+        f"Match results today:\n{results_text}\n\n"
+        f"News context:\n{news_text[:1000]}"
+    )
+
+    try:
+        payload = json.dumps({
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': 300,
+            'messages': [{'role': 'user', 'content': prompt}],
+        }).encode()
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=payload,
+            headers={
+                'x-api-key': ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = json.loads(r.read().decode())
+        summary = data['content'][0]['text'].strip()
+        result  = {'summary': summary, 'updated': datetime.now().strftime('%b %d · %I:%M %p'), 'error': None}
+    except Exception as e:
+        result = {'summary': '', 'updated': '', 'error': str(e)}
+
+    _summary_cache    = result
+    _summary_cache_ts = now
+    return result
+
+
 def _fetch_dk_odds():
     return {'atp': _STATIC_ODDS['atp'], 'wta': _STATIC_ODDS['wta'], 'error': None}
 
@@ -1514,6 +1659,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(body, 'application/json')
             except Exception as e:
                 self.send_body(str(e).encode(), 'text/plain', 500)
+        elif self.path.startswith('/api/summary'):
+            try:
+                body = json.dumps(_fetch_ai_summary()).encode()
+                self.send_body(body, 'application/json')
+            except Exception as e:
+                self.send_body(json.dumps({'summary':'','updated':'','error':str(e)}).encode(), 'application/json')
         elif self.path.startswith('/api/odds/sports'):
             # Debug: show all tennis sports The Odds API returns for this key
             try:
