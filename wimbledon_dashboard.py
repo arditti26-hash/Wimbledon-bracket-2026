@@ -140,10 +140,11 @@ body {
 .sc-banner {
   background: linear-gradient(90deg, var(--cream) 0%, var(--cream2) 50%, var(--cream) 100%);
   border-bottom: 1px solid #e0d5b0;
-  padding: 7px 20px;
-  display: flex; align-items: center; justify-content: center; gap: 16px;
+  padding: 7px 12px;
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
   font-family: 'EB Garamond', Georgia, serif;
   font-size: 0.82rem; color: #5a3e1b; letter-spacing: 0.05em;
+  text-align: center;
 }
 .sc-grass {
   display: flex; gap: 3px; align-items: flex-end;
@@ -391,7 +392,7 @@ body {
       </div>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <table class="lb-table" style="min-width:340px;width:100%;table-layout:fixed;">
+    <table class="lb-table" style="min-width:520px;width:100%;table-layout:fixed;">
       <thead>
         <tr>
           <th>#</th>
@@ -898,7 +899,7 @@ function render() {
     return `<tr>
       <td class="rank-cell ${rank<=3?'gold':''}">${rank<=3?['🥇','🥈','🥉'][rank-1]:rank}</td>
       <td style="overflow:hidden;">
-        <div class="player-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a class="name-link" href="${bracketUrl}" target="_blank" rel="noopener" style="color:${c.primary}">${esc(p.username)}</a></div>
+        <div class="player-name" style="white-space:nowrap;"><a class="name-link" href="${bracketUrl}" target="_blank" rel="noopener" style="color:${c.primary}">${esc(p.username)}</a></div>
         <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${c.primary}"></div></div>
       </td>
       <td style="text-align:center;">${combPill}</td><td style="text-align:center;">${atpPill}</td><td style="text-align:center;">${wtaPill}</td><td style="text-align:center;">${maxPill}</td>
@@ -1468,10 +1469,10 @@ def _fetch_ai_summary():
     today        = datetime.now().strftime('%B %d, %Y')
 
     prompt = (
-        f"You are a witty tennis writer covering Wimbledon {today}. "
-        f"Write a punchy 3-4 sentence daily recap of today's action at Wimbledon. "
-        f"Focus on the most interesting results, upsets, and storylines. "
-        f"Keep it conversational and fun — like a group chat message to tennis fans.\n\n"
+        f"You are a concise tennis writer covering Wimbledon {today}. "
+        f"Write exactly 4 sentences recapping today's action — 2 sentences on the Women's draw first, then 2 sentences on the Men's draw. "
+        f"Each sentence should highlight the most notable result, upset, or storyline from that draw. "
+        f"Keep it punchy and conversational, like a group chat message to tennis fans. No headers, no bullet points — just 4 flowing sentences.\n\n"
         f"Match results today:\n{results_text}\n\n"
         f"News context:\n{news_text[:1000]}"
     )
