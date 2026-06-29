@@ -409,6 +409,43 @@ body {
     </div>
   </div>
 
+  <!-- AI DAILY SUMMARY -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">🎙 Today at Wimbledon</div>
+        <div class="card-sub" id="summary-updated">Refreshes hourly</div>
+      </div>
+    </div>
+    <div id="summary-body" style="padding:20px 24px;font-family:'EB Garamond',Georgia,serif;font-size:1.05rem;line-height:1.7;color:#2a2a2a;min-height:80px;">
+      <span style="color:#aaa;font-family:sans-serif;font-size:0.85rem;">Loading today's recap…</span>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    function loadSummary() {
+      fetch('/api/summary')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          var el = document.getElementById('summary-body');
+          var upd = document.getElementById('summary-updated');
+          if (data.error === 'no_key') {
+            el.innerHTML = '<span style="color:#aaa;font-family:sans-serif;font-size:0.82rem;">Add <code style="background:#f0f0f0;padding:1px 5px;border-radius:3px;">ANTHROPIC_API_KEY</code> to Render environment variables to enable AI recaps.</span>';
+          } else if (data.error) {
+            el.innerHTML = '<span style="color:#aaa;font-family:sans-serif;font-size:0.82rem;">Recap unavailable — ' + data.error + '</span>';
+          } else if (data.summary) {
+            el.textContent = data.summary;
+            if (data.updated) upd.textContent = 'Updated · ' + data.updated;
+          }
+        })
+        .catch(function(){});
+    }
+    loadSummary();
+    setInterval(loadSummary, 60 * 60 * 1000);
+  })();
+  </script>
+
   <!-- LIVE BRACKET VISUALIZATION -->
   <div class="card" id="bracket-card" style="margin-bottom:24px;overflow:hidden;">
     <div class="card-header" style="margin-bottom:0;">
@@ -757,43 +794,6 @@ body {
 
     loadOdds();
     setInterval(loadOdds, 5 * 60 * 1000);
-  })();
-  </script>
-
-  <!-- AI DAILY SUMMARY -->
-  <div class="card" style="margin-bottom:24px;">
-    <div class="card-header">
-      <div>
-        <div class="card-title">🎙 Today at Wimbledon</div>
-        <div class="card-sub" id="summary-updated">AI recap · refreshes hourly</div>
-      </div>
-    </div>
-    <div id="summary-body" style="padding:20px 24px;font-family:'EB Garamond',Georgia,serif;font-size:1.05rem;line-height:1.7;color:#2a2a2a;min-height:80px;">
-      <span style="color:#aaa;font-family:sans-serif;font-size:0.85rem;">Loading today's recap…</span>
-    </div>
-  </div>
-
-  <script>
-  (function(){
-    function loadSummary() {
-      fetch('/api/summary')
-        .then(function(r){ return r.json(); })
-        .then(function(data){
-          var el = document.getElementById('summary-body');
-          var upd = document.getElementById('summary-updated');
-          if (data.error === 'no_key') {
-            el.innerHTML = '<span style="color:#aaa;font-family:sans-serif;font-size:0.82rem;">Add <code style="background:#f0f0f0;padding:1px 5px;border-radius:3px;">ANTHROPIC_API_KEY</code> to Render environment variables to enable AI recaps.</span>';
-          } else if (data.error) {
-            el.innerHTML = '<span style="color:#aaa;font-family:sans-serif;font-size:0.82rem;">Recap unavailable — ' + data.error + '</span>';
-          } else if (data.summary) {
-            el.textContent = data.summary;
-            if (data.updated) upd.textContent = 'AI recap · ' + data.updated;
-          }
-        })
-        .catch(function(){});
-    }
-    loadSummary();
-    setInterval(loadSummary, 60 * 60 * 1000);
   })();
   </script>
 
