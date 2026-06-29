@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Wimbledon 2026 Group Bracket Dashboard — scrapes served.bracket.tennis"""
 
-import json, re, urllib.request, os
+import json, re, urllib.request, os, time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
-from html.parser import HTMLParser
 
 PORT = int(os.environ.get('PORT', 8767))
 
@@ -331,6 +330,7 @@ body {
   </div>
   <div class="topbar-right">
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <button onclick="copyInviteLink()" id="invite-btn" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 13px;cursor:pointer;font-size:0.78rem;font-family:sans-serif;">🔗 Share</button>
     <button onclick="openModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 13px;cursor:pointer;font-size:0.78rem;font-family:sans-serif;">⚙ Group</button>
   </div>
 </div>
@@ -636,109 +636,216 @@ def build_html():
     return html
 
 
-# ── Scrape served.bracket.tennis ──────────────────────────────────────────────
+# ── Scoring engine — served.bracket.tennis turbo-stream decoder ──────────────
 
-class LeaderboardParser(HTMLParser):
-    """
-    Walks the HTML of the served.bracket.tennis leaderboard page and collects
-    username → {atp, wta, combined} score data.
-
-    The page structure uses table rows where each row links to
-    /tournaments/<slug>/<section>/brackets/<username>
-    and contains score cells.
-    """
-    def __init__(self, members):
-        super().__init__()
-        self.members_lower = {m.lower(): m for m in members}
-        self.scores = {m: {'atp': None, 'wta': None, 'combined': None} for m in members}
-        self._current_row_user = None
-        self._current_row_section = None
-        self._in_cell = False
-        self._cell_text = ''
-        self._cells = []
-        self._in_row = False
-
-    def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
-        if tag == 'tr':
-            self._in_row = True
-            self._cells = []
-            self._current_row_user = None
-            self._current_row_section = None
-        elif tag == 'a' and 'href' in attrs:
-            href = attrs['href']
-            m = re.search(r'/(atp|wta|combined)/brackets/([^/?#]+)', href, re.I)
-            if m:
-                section = m.group(1).lower()
-                username = urllib.request.unquote(m.group(2))
-                canonical = self.members_lower.get(username.lower())
-                if canonical:
-                    self._current_row_user = canonical
-                    self._current_row_section = section
-        elif tag in ('td', 'th'):
-            self._in_cell = True
-            self._cell_text = ''
-
-    def handle_endtag(self, tag):
-        if tag in ('td', 'th') and self._in_cell:
-            self._cells.append(self._cell_text.strip())
-            self._in_cell = False
-            self._cell_text = ''
-        elif tag == 'tr':
-            if self._current_row_user and self._current_row_section:
-                # Find first numeric cell value
-                for cell in self._cells:
-                    clean = cell.replace(',', '').strip()
-                    if clean.isdigit():
-                        val = int(clean)
-                        self.scores[self._current_row_user][self._current_row_section] = val
-                        break
-            self._in_row = False
-
-    def handle_data(self, data):
-        if self._in_cell:
-            self._cell_text += data
+ROUND_POINTS = {1: 10, 2: 20, 3: 30, 4: 40, 5: 60, 6: 80, 7: 100}
 
 
-def fetch_leaderboard_html():
-    url = f'https://served.bracket.tennis/tournaments/{TOURNAMENT_SLUG}/leaderboard'
+def _fetch_bracket_html(username, tour):
+    url = f'https://served.bracket.tennis/tournaments/{TOURNAMENT_SLUG}/{tour}/brackets/{username}'
     req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Accept': 'text/html',
     })
     with urllib.request.urlopen(req, timeout=15) as r:
         return r.read().decode('utf-8', errors='replace')
 
 
-def fetch_scores_for(members):
-    """Fetch and parse scores for the given members list from served.bracket.tennis."""
+def _parse_flat_array(html):
+    """Extract and parse the React Router turbo-stream flat array from the page script."""
+    scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    big = max(scripts, key=len) if scripts else ''
+    m = re.search(r'streamController\.enqueue\("(.*?)"\)', big, re.S)
+    if not m:
+        return None
+    encoded = m.group(1)
+    # Decode the JavaScript string: \\ → \, \" → "  then strip stray literal newlines
+    arr_str = (encoded
+               .replace('\\\\', '\x00BS\x00')
+               .replace('\\"', '"')               .replace('\x00BS\x00', '\\')               .replace('\n', '')               .replace('\r', ''))
+    if arr_str.endswith('\\n'):
+        arr_str = arr_str[:-2]
     try:
-        html = fetch_leaderboard_html()
+        return json.loads(arr_str)
     except Exception:
-        return {m: {'atp': None, 'wta': None, 'combined': None} for m in members}
-    parser = LeaderboardParser(members)
-    parser.feed(html)
-    scores = parser.scores
+        return None
 
-    # Fallback: also try regex scan on raw HTML for "username ... NNN" patterns
-    text = re.sub(r'<[^>]+>', ' ', html)
-    for member in members:
-        s = scores[member]
-        # Try to find combined pattern: username ... NNN+NNN=NNN
-        pattern = re.escape(member) + r'[^<\n]*?(\d[\d,]+)\s*\+\s*(\d[\d,]+)\s*=\s*(\d[\d,]+)'
-        m = re.search(pattern, text, re.I)
-        if m:
-            if s['atp']      is None: s['atp']      = int(m.group(1).replace(',',''))
-            if s['wta']      is None: s['wta']      = int(m.group(2).replace(',',''))
-            if s['combined'] is None: s['combined'] = int(m.group(3).replace(',',''))
 
-    # Derive combined from atp+wta if still missing
-    for member in members:
-        s = scores.get(member, {})
-        if s.get('combined') is None and s.get('atp') is not None and s.get('wta') is not None:
-            s['combined'] = s['atp'] + s['wta']
+def _ts_val(flat, ref):
+    """Resolve a turbo-stream integer reference to its value."""
+    if not isinstance(ref, int) or ref < 0 or ref >= len(flat):
+        return None
+    item = flat[ref]
+    if isinstance(item, dict):
+        return _ts_obj(flat, item)
+    return item
 
-    return scores
+
+def _ts_obj(flat, obj):
+    """Decode a turbo-stream object {"_N":M, ...} into a plain Python dict."""
+    result = {}
+    for k, v in obj.items():
+        key_idx = int(k[1:])
+        key = flat[key_idx] if 0 <= key_idx < len(flat) else None
+        val = _ts_val(flat, v) if isinstance(v, int) else v
+        if key is not None:
+            result[key] = val
+    return result
+
+
+def _extract_bracket_data(flat):
+    """
+    Decode the flat turbo-stream array to produce:
+      r1_draw:       {slot(1-128): (player_name, ranking)}
+      match_results: {(round, pos): {winner, wr, lr}}
+
+    R1 match at position k maps to draw slots 2k-1 (top) and 2k (bottom).
+    Seeding proxy: ATP/WTA ranking (top 32 are seeded at Wimbledon).
+    """
+    matches_refs = None
+    for i, item in enumerate(flat):
+        if (item == 'matches'
+                and i + 1 < len(flat)
+                and isinstance(flat[i + 1], list)
+                and len(flat[i + 1]) > 50):
+            matches_refs = flat[i + 1]
+            break
+    if not matches_refs:
+        return {}, {}
+
+    r1_draw = {}
+    match_results = {}
+
+    for ref in matches_refs:
+        raw = flat[ref]
+        if not isinstance(raw, dict):
+            continue
+        m = _ts_obj(flat, raw)
+        rnd = m.get('roundNumber')
+        pos = m.get('position')
+        if not rnd or not pos:
+            continue
+
+        p1 = m.get('player1') or {}
+        p2 = m.get('player2') or {}
+        winner = m.get('winner') or {}
+
+        if rnd == 1:
+            s1 = (pos - 1) * 2 + 1
+            s2 = (pos - 1) * 2 + 2
+            if p1.get('name'):
+                r1_draw[s1] = (p1['name'], p1.get('ranking') or 999)
+            if p2.get('name'):
+                r1_draw[s2] = (p2['name'], p2.get('ranking') or 999)
+
+        if winner.get('name'):
+            wname = winner['name']
+            r1 = p1.get('ranking') or 999
+            r2 = p2.get('ranking') or 999
+            wr = r1 if p1.get('name') == wname else r2
+            lr = r2 if p1.get('name') == wname else r1
+            match_results[(rnd, pos)] = {'winner': wname, 'wr': wr, 'lr': lr}
+
+    return r1_draw, match_results
+
+
+def _extract_picks(html):
+    """
+    Extract user picks from bracket page HTML.
+    Returns {(round, match_pos): draw_slot} or {}.
+    Picks are embedded as {"_v":2,"1:1":slot,...}.
+    """
+    scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    big = max(scripts, key=len) if scripts else ''
+    m = re.search(r'picks\\",\\"(\{.*?\})\\"'  , big)
+    if not m:
+        return {}
+    raw = m.group(1).replace('\\\\\\"'  , '"')
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return {}
+    picks = {}
+    for key, val in data.items():
+        if ':' in str(key):
+            parts = key.split(':')
+            try:
+                picks[(int(parts[0]), int(parts[1]))] = int(val)
+            except (ValueError, TypeError):
+                pass
+    return picks
+
+
+def _calculate_score(picks, r1_draw, match_results):
+    """
+    Calculate a user's total bracket score.
+
+    picks:         {(round, match_pos): draw_slot}
+    r1_draw:       {draw_slot: (player_name, ranking)}
+    match_results: {(round, match_pos): {winner, wr, lr}}
+
+    Points per correct pick:
+      base:           ROUND_POINTS[round]
+      unseeded upset: x2  (winner_rank > 32, loser_rank <= 32)
+      seeded upset:   +gap  (both seeded, winner_rank > loser_rank)
+    """
+    total = 0
+    for (rnd, mpos), slot in picks.items():
+        if not (1 <= rnd <= 7):
+            continue
+        result = match_results.get((rnd, mpos))
+        if not result:
+            continue
+        if slot not in r1_draw:
+            continue
+        player_name, _ = r1_draw[slot]
+        if result['winner'] != player_name:
+            continue
+
+        base = ROUND_POINTS[rnd]
+        wr, lr = result['wr'], result['lr']
+        winner_seeded = wr <= 32
+        loser_seeded  = lr <= 32
+
+        if not winner_seeded and loser_seeded:
+            pts = base * 2
+        elif winner_seeded and loser_seeded and wr > lr:
+            pts = base + (wr - lr)
+        else:
+            pts = base
+
+        total += pts
+    return total
+
+
+# Tournament data cache: shared draw+results across all users per request
+_tourney_cache    = {}
+_tourney_cache_ts = {}
+
+
+def _get_tournament_data(tour, members):
+    """
+    Return (r1_draw, match_results) for the given tour, cached 3 minutes.
+    Fetches the first available member's bracket page to decode the draw.
+    """
+    now = time.time()
+    if tour in _tourney_cache and now - _tourney_cache_ts.get(tour, 0) < 180:
+        return _tourney_cache[tour]
+
+    for username in members:
+        try:
+            html = _fetch_bracket_html(username, tour)
+            flat = _parse_flat_array(html)
+            if flat:
+                r1_draw, match_results = _extract_bracket_data(flat)
+                if r1_draw:
+                    _tourney_cache[tour] = (r1_draw, match_results)
+                    _tourney_cache_ts[tour] = now
+                    return r1_draw, match_results
+        except Exception:
+            continue
+
+    return {}, {}
 
 
 def get_data(members=None):
@@ -747,16 +854,43 @@ def get_data(members=None):
     if not members:
         return {'players': [], 'updated': datetime.now().strftime('%b %d, %Y · %I:%M:%S %p')}
 
-    scores = fetch_scores_for(members)
+    # Shared draw + results for ATP and WTA (one fetch per tour, reused for all members)
+    atp_draw, atp_results = _get_tournament_data('atp', members)
+    wta_draw, wta_results = _get_tournament_data('wta', members)
 
     players = []
     for i, member in enumerate(members):
-        s = scores.get(member, {'atp': None, 'wta': None, 'combined': None})
+        atp_score = wta_score = None
+
+        try:
+            html = _fetch_bracket_html(member, 'atp')
+            picks = _extract_picks(html)
+            if picks and atp_draw:
+                atp_score = _calculate_score(picks, atp_draw, atp_results)
+        except Exception:
+            pass
+
+        try:
+            html = _fetch_bracket_html(member, 'wta')
+            picks = _extract_picks(html)
+            if picks and wta_draw:
+                wta_score = _calculate_score(picks, wta_draw, wta_results)
+        except Exception:
+            pass
+
+        combined = None
+        if atp_score is not None and wta_score is not None:
+            combined = atp_score + wta_score
+        elif atp_score is not None:
+            combined = atp_score
+        elif wta_score is not None:
+            combined = wta_score
+
         players.append({
-            'username': member,
-            'atp':      s['atp'],
-            'wta':      s['wta'],
-            'combined': s['combined'],
+            'username':  member,
+            'atp':       atp_score,
+            'wta':       wta_score,
+            'combined':  combined,
             'color_idx': i % len(COLORS),
         })
 
