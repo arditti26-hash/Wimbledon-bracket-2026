@@ -1443,18 +1443,26 @@ def _fetch_wimbledon_news():
 
 
 def _build_results_text():
-    """Build completed match results from bracket data, split by tour."""
+    """Build completed match results from bracket data, split by tour, including scores."""
     atp_lines, wta_lines = [], []
     round_names = {1:'R1',2:'R2',3:'R3',4:'R4',5:'QF',6:'SF',7:'Final'}
-    for tour, lines in [('atp', atp_lines), ('wta', wta_lines)]:
+    for tour, bucket in [('atp', atp_lines), ('wta', wta_lines)]:
         try:
-            _, results, _ = _get_tournament_data(tour, MEMBERS)
+            _, results, all_matches = _get_tournament_data(tour, MEMBERS)
+            # Build score lookup from all_matches
+            score_lookup = {}
+            for m in all_matches:
+                if m.get('winner') and m.get('score'):
+                    score_lookup[(m['round'], m['pos'])] = m['score']
             for (rnd, pos), r in sorted(results.items()):
-                rname = round_names.get(rnd, f'R{rnd}')
+                rname  = round_names.get(rnd, f'R{rnd}')
                 winner = r.get('winner', '?')
                 loser  = r.get('loser', '?')
-                if winner and loser:
-                    lines.append(f"{rname}: {winner} def. {loser}")
+                score  = score_lookup.get((rnd, pos), '')
+                line   = f"{rname}: {winner} def. {loser}"
+                if score:
+                    line += f" ({score})"
+                bucket.append(line)
         except Exception:
             pass
     atp_text = "Men's results:\n" + '\n'.join(atp_lines[:20]) if atp_lines else "Men's results: none yet"
@@ -1484,14 +1492,15 @@ def _fetch_ai_summary():
 
     prompt = (
         f"You are a witty, engaging tennis writer covering Wimbledon {today}. "
-        f"Write a punchy daily recap using ONLY the match results and news context provided below — never invent scores, match details, or storylines not present in the data. "
-        f"You can be colorful and fun with your language, but every fact must come directly from the results or news provided. "
+        f"Write a punchy daily recap using ONLY the match results below — scores are included in parentheses. "
+        f"Use the scores to accurately describe matches (e.g. a 5-set match was a battle, a 6-3 6-2 6-1 win was dominant). "
+        f"NEVER invent or assume any detail not present in the results. Do not use the news context to describe match quality — use only the actual scores provided. "
         f"Use this exact format — no intro, no extra text:\n"
-        f"WOMEN'S: [2 engaging sentences based only on Women's results and news below]\n"
-        f"MEN'S: [2 engaging sentences based only on Men's results and news below]\n"
+        f"WOMEN'S: [2 engaging sentences grounded in the Women's scores below]\n"
+        f"MEN'S: [2 engaging sentences grounded in the Men's scores below]\n"
         f"If there are no results for a draw yet, say so in one fun sentence.\n\n"
-        f"Match results:\n{results_text}\n\n"
-        f"News context (only use facts explicitly stated here):\n{news_text[:1500]}"
+        f"Match results (with scores):\n{results_text}\n\n"
+        f"Additional news context (for storylines only, not match descriptions):\n{news_text[:1000]}"
     )
 
     try:
