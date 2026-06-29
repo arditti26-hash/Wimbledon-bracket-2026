@@ -460,12 +460,20 @@ function loadMembers() {
   const raw = location.hash.slice(1);
   if (raw) {
     try {
-      // decode URI encoding, pad base64 if = signs were stripped
-      let b64 = decodeURIComponent(raw);
-      b64 = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
-      const fromUrl = JSON.parse(atob(b64));
+      // Support plain comma-separated list (new format) and old base64 format
+      let fromUrl;
+      if (raw.startsWith('WyJ') || raw.startsWith('%5B')) {
+        // old base64 format — try to decode for backwards compat
+        let b64 = decodeURIComponent(raw);
+        b64 = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
+        fromUrl = JSON.parse(atob(b64));
+      } else {
+        // new plain comma-separated format
+        fromUrl = decodeURIComponent(raw).split(',').map(s => s.trim()).filter(Boolean);
+      }
       if (Array.isArray(fromUrl) && fromUrl.length > 0) {
         localStorage.setItem('wim_members', JSON.stringify(fromUrl));
+        history.replaceState(null, '', '#' + fromUrl.map(encodeURIComponent).join(','));
         return fromUrl;
       }
     } catch(e) {}
@@ -476,8 +484,7 @@ function loadMembers() {
 
 function saveMembers() {
   localStorage.setItem('wim_members', JSON.stringify(members));
-  const encoded = encodeURIComponent(btoa(JSON.stringify(members)));
-  history.replaceState(null, '', '#' + encoded);
+  history.replaceState(null, '', '#' + members.map(encodeURIComponent).join(','));
 }
 
 // ── DATA FETCH ────────────────────────────────────────────────────────────────
@@ -604,7 +611,7 @@ function saveAndClose() {
 
 async function copyShareLink() {
   saveMembers();
-  const link = location.origin + location.pathname + '#' + encodeURIComponent(btoa(JSON.stringify(members)));
+  const link = location.origin + location.pathname + '#' + members.map(encodeURIComponent).join(',');
   try {
     await navigator.clipboard.writeText(link);
     const btn = document.getElementById('copy-btn');
