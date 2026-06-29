@@ -396,9 +396,9 @@ body {
         <tr>
           <th>#</th>
           <th>Player</th>
+          <th>Combined</th>
           <th>Mens</th>
           <th>Womens</th>
-          <th>Combined</th>
           <th>Max Pts</th>
         </tr>
       </thead>
@@ -864,7 +864,7 @@ function render() {
         <div class="player-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a class="name-link" href="${bracketUrl}" target="_blank" rel="noopener" style="color:${c.primary}">${esc(p.username)}</a></div>
         <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${c.primary}"></div></div>
       </td>
-      <td style="text-align:center;">${atpPill}</td><td style="text-align:center;">${wtaPill}</td><td style="text-align:center;">${combPill}</td><td style="text-align:center;">${maxPill}</td>
+      <td style="text-align:center;">${combPill}</td><td style="text-align:center;">${atpPill}</td><td style="text-align:center;">${wtaPill}</td><td style="text-align:center;">${maxPill}</td>
     </tr>`;
   }).join('');
 
