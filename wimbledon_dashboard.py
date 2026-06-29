@@ -168,20 +168,6 @@ body {
 }
 .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
 
-/* ── SECTION TABS ── */
-.tab-bar {
-  display: flex; gap: 4px; margin-bottom: 18px;
-  border-bottom: 2px solid var(--border);
-}
-.tab-btn {
-  background: none; border: none; cursor: pointer;
-  padding: 9px 20px; font-family: sans-serif; font-size: 0.88rem;
-  color: var(--muted); border-bottom: 3px solid transparent;
-  margin-bottom: -2px; transition: color 0.15s;
-}
-.tab-btn.active { color: var(--green); border-bottom-color: var(--green); font-weight: 700; }
-.tab-btn:hover:not(.active) { color: var(--text); }
-
 /* ── LEADERBOARD CARD ── */
 .card {
   background: var(--card); border: 1px solid var(--border);
@@ -391,17 +377,11 @@ body {
     <span id="status-text">Loading…</span>
   </div>
 
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('combined')">Combined</button>
-    <button class="tab-btn" onclick="switchTab('atp')">ATP — Men's</button>
-    <button class="tab-btn" onclick="switchTab('wta')">WTA — Women's</button>
-  </div>
-
   <div class="card">
     <div class="card-header">
       <div>
-        <div class="card-title" id="section-title">Combined Standings</div>
-        <div class="card-sub" id="section-sub">ATP + WTA · served.bracket.tennis</div>
+        <div class="card-title">Combined Standings</div>
+        <div class="card-sub">ATP + WTA · served.bracket.tennis</div>
       </div>
     </div>
     <table class="lb-table">
@@ -412,13 +392,221 @@ body {
           <th>ATP</th>
           <th>WTA</th>
           <th class="right">Combined</th>
+          <th class="right">Max Pts</th>
         </tr>
       </thead>
       <tbody id="lb-body">
-        <tr><td colspan="5" style="padding:32px;text-align:center;color:#aaa;font-family:sans-serif">Loading…</td></tr>
+        <tr><td colspan="6" style="padding:32px;text-align:center;color:#aaa;font-family:sans-serif">Loading…</td></tr>
       </tbody>
     </table>
   </div>
+
+  <!-- LIVE BRACKET VISUALIZATION -->
+  <div class="card" id="bracket-card" style="margin-bottom:24px;overflow:hidden;">
+    <div class="card-header" style="margin-bottom:0;">
+      <div>
+        <div class="card-title">🎾 Live Bracket</div>
+        <div class="card-sub">Real-time draw · served.bracket.tennis</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="btn-atp" onclick="switchBracketTour('atp')"
+          style="padding:6px 16px;border-radius:100px;border:2px solid #00512e;background:#00512e;color:#fff;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:sans-serif;letter-spacing:0.5px;">
+          Men's
+        </button>
+        <button id="btn-wta" onclick="switchBracketTour('wta')"
+          style="padding:6px 16px;border-radius:100px;border:2px solid #ddd8cc;background:#fff;color:#4b006e;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:sans-serif;letter-spacing:0.5px;">
+          Women's
+        </button>
+        <a id="bracket-ext-link" href="https://served.bracket.tennis/tournaments/__SLUG__/atp/bracket"
+           target="_blank" rel="noopener"
+           style="padding:6px 12px;border-radius:100px;border:1px solid #ddd8cc;background:#f9f7f4;color:#6b6b6b;font-size:0.72rem;font-family:sans-serif;text-decoration:none;white-space:nowrap;">
+          Full ↗
+        </a>
+      </div>
+    </div>
+
+    <!-- Round labels -->
+    <div id="bracket-round-labels" style="display:flex;overflow-x:auto;padding:8px 0 0 0;border-bottom:1px solid #e8e4d8;scrollbar-width:none;">
+    </div>
+
+    <!-- Bracket body -->
+    <div id="bracket-body" style="overflow-x:auto;overflow-y:auto;max-height:480px;background:#fafaf8;">
+      <div style="padding:40px;text-align:center;color:#aaa;font-size:0.85rem;font-family:sans-serif;">Loading bracket…</div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    var _bTour = 'atp';
+    var _bCache = {};
+
+    window.switchBracketTour = function(tour) {
+      _bTour = tour;
+      document.getElementById('btn-atp').style.background = tour === 'atp' ? '#00512e' : '#fff';
+      document.getElementById('btn-atp').style.color = tour === 'atp' ? '#fff' : '#00512e';
+      document.getElementById('btn-atp').style.borderColor = tour === 'atp' ? '#00512e' : '#ddd8cc';
+      document.getElementById('btn-wta').style.background = tour === 'wta' ? '#4b006e' : '#fff';
+      document.getElementById('btn-wta').style.color = tour === 'wta' ? '#fff' : '#4b006e';
+      document.getElementById('btn-wta').style.borderColor = tour === 'wta' ? '#4b006e' : '#ddd8cc';
+      document.getElementById('bracket-ext-link').href =
+        'https://served.bracket.tennis/tournaments/__SLUG__/' + tour + '/bracket';
+      loadBracket(tour);
+    };
+
+    function loadBracket(tour) {
+      var body = document.getElementById('bracket-body');
+      var labelsEl = document.getElementById('bracket-round-labels');
+      if (_bCache[tour]) { renderBracket(_bCache[tour], body, labelsEl); return; }
+      body.innerHTML = '<div style="padding:40px;text-align:center;color:#aaa;font-size:0.85rem;font-family:sans-serif;">Loading bracket…</div>';
+      var membersParam = (window._currentMembers && window._currentMembers.length)
+        ? '&members=' + encodeURIComponent(window._currentMembers.join(',')) : '';
+      fetch('/api/bracket?tour=' + tour + membersParam)
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          _bCache[tour] = data;
+          renderBracket(data, body, labelsEl);
+        })
+        .catch(function(e){
+          body.innerHTML = '<div style="padding:40px;text-align:center;color:#c0392b;font-size:0.85rem;font-family:sans-serif;">Could not load bracket.</div>';
+        });
+    }
+
+    var ROUND_LABELS = ['','R1','R2','R3','R4','QF','SF','F'];
+    var ROUND_COLORS = {
+      1:'#00512e', 2:'#006b3c', 3:'#007a45', 4:'#3a7d2e',
+      5:'#7d5a00', 6:'#a0006b', 7:'#4b006e'
+    };
+    var COL_W = 162;  // px per round column (wider for flag + name)
+    var ROW_H = 22;   // px per player row
+    var TOTAL_H = 3200; // px — 64 R1 slots × 50px
+
+    // ITF 3-letter → ISO 2-letter
+    var ISO2 = {
+      'USA':'US','GBR':'GB','ESP':'ES','FRA':'FR','GER':'DE','AUS':'AU',
+      'ITA':'IT','SRB':'RS','RUS':'RU','ARG':'AR','CAN':'CA','CHN':'CN',
+      'JPN':'JP','BEL':'BE','NED':'NL','SUI':'CH','DEN':'DK','NOR':'NO',
+      'SWE':'SE','CZE':'CZ','POL':'PL','HUN':'HU','GRE':'GR','CRO':'HR',
+      'BUL':'BG','ROU':'RO','UKR':'UA','KAZ':'KZ','BRA':'BR','CHI':'CL',
+      'COL':'CO','MEX':'MX','RSA':'ZA','EGY':'EG','TUN':'TN','MAR':'MA',
+      'KOR':'KR','TPE':'TW','IND':'IN','THA':'TH','MAS':'MY','SGP':'SG',
+      'NZL':'NZ','AUT':'AT','SVK':'SK','SLO':'SI','FIN':'FI','POR':'PT',
+      'MDA':'MD','LTU':'LT','LAT':'LV','EST':'EE','GEO':'GE','ARM':'AM',
+      'AZE':'AZ','UZB':'UZ','BAH':'BS','ECU':'EC','PER':'PE','URU':'UY',
+      'TUR':'TR','ISR':'IL','QAT':'QA','UAE':'AE','KUW':'KW','BLR':'BY',
+      'CYP':'CY','LUX':'LU','MON':'MC','BIH':'BA','MKD':'MK','ALB':'AL',
+      'PAK':'PK','VIE':'VN','PHI':'PH','INA':'ID','SRI':'LK','NEP':'NP',
+      'CHI':'CL','PAR':'PY','VEN':'VE','BOL':'BO','DOM':'DO','PUR':'PR',
+    };
+
+    function countryFlag(code) {
+      if (!code) return '';
+      var c2 = ISO2[code] || (code.length === 2 ? code : null);
+      if (!c2) return '';
+      var o = 127397; // 0x1F1E6 - 65
+      try {
+        return String.fromCodePoint(c2.charCodeAt(0) + o, c2.charCodeAt(1) + o);
+      } catch(e) { return ''; }
+    }
+
+    function lastName(name) {
+      if (!name) return 'TBD';
+      var parts = name.trim().split(' ');
+      return parts[parts.length - 1];
+    }
+
+    function renderBracket(data, container, labelsEl) {
+      var matches = data.matches || [];
+      if (!matches.length) {
+        container.innerHTML = '<div style="padding:40px;text-align:center;color:#aaa;font-size:0.85rem;font-family:sans-serif;">No bracket data yet.</div>';
+        labelsEl.innerHTML = '';
+        return;
+      }
+
+      // Group by round, sort by pos
+      var rounds = {};
+      var maxRound = 0;
+      matches.forEach(function(m) {
+        if (!rounds[m.round]) rounds[m.round] = [];
+        rounds[m.round].push(m);
+        if (m.round > maxRound) maxRound = m.round;
+      });
+      for (var r in rounds) rounds[r].sort(function(a,b){ return a.pos - b.pos; });
+
+      // Build round labels bar (synced scroll with bracket body)
+      labelsEl.innerHTML = '';
+      labelsEl.style.display = 'flex';
+      labelsEl.style.minWidth = (maxRound * (COL_W + 1)) + 'px';
+      for (var rn = 1; rn <= maxRound; rn++) {
+        var lbl = document.createElement('div');
+        lbl.style.cssText = 'width:' + COL_W + 'px;flex-shrink:0;text-align:center;padding:5px 0 6px;font-size:0.7rem;font-weight:700;letter-spacing:1px;font-family:sans-serif;color:' + (ROUND_COLORS[rn] || '#333') + ';border-right:1px solid #e8e4d8;';
+        lbl.textContent = ROUND_LABELS[rn] || ('R' + rn);
+        labelsEl.appendChild(lbl);
+      }
+
+      // Build bracket
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;height:' + TOTAL_H + 'px;';
+
+      for (var rv = 1; rv <= maxRound; rv++) {
+        var rMatches = rounds[rv] || [];
+        var col = document.createElement('div');
+        col.style.cssText = 'display:flex;flex-direction:column;width:' + COL_W + 'px;flex-shrink:0;border-right:1px solid #e8e4d8;';
+
+        rMatches.forEach(function(m, mi) {
+          var slot = document.createElement('div');
+          slot.style.cssText = 'flex:1;display:flex;align-items:center;padding:0 3px;';
+
+          var card = document.createElement('div');
+          card.style.cssText = 'width:100%;border-radius:4px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);';
+
+          [
+            { name: m.p1, rank: m.p1_rank, country: m.p1_country },
+            { name: m.p2, rank: m.p2_rank, country: m.p2_country }
+          ].forEach(function(p, pi) {
+            var isWinner = m.winner && m.winner === p.name;
+            var isTbd = !p.name;
+            var row = document.createElement('div');
+            var flag = p.country ? countryFlag(p.country) : '';
+            var seed = (p.rank && p.rank <= 32) ? '[' + p.rank + '] ' : '';
+            row.textContent = (flag ? flag + ' ' : '') + seed + lastName(p.name);
+            row.style.cssText = [
+              'height:' + ROW_H + 'px',
+              'line-height:' + ROW_H + 'px',
+              'padding:0 5px',
+              'font-size:10.5px',
+              'overflow:hidden',
+              'white-space:nowrap',
+              'text-overflow:ellipsis',
+              'font-family:sans-serif',
+              'border:1px solid ' + (isWinner ? '#9ecfad' : '#e0dbd0'),
+              pi === 0 ? 'border-bottom:1px solid #e8e4d8' : '',
+              'background:' + (isWinner ? '#d4f0dc' : isTbd ? '#f5f4f0' : '#fff'),
+              'color:' + (isWinner ? '#00512e' : isTbd ? '#bbb' : '#1a1a1a'),
+              'font-weight:' + (isWinner ? '600' : '400'),
+            ].join(';');
+            card.appendChild(row);
+          });
+
+          slot.appendChild(card);
+          col.appendChild(slot);
+        });
+
+        wrap.appendChild(col);
+      }
+
+      container.innerHTML = '';
+      container.appendChild(wrap);
+
+      // Sync horizontal scroll between labels and body
+      container.onscroll = function() {
+        labelsEl.scrollLeft = container.scrollLeft;
+      };
+    }
+
+    // Load ATP bracket on page load (after a short delay so scores load first)
+    setTimeout(function(){ loadBracket('atp'); }, 800);
+  })();
+  </script>
 
   <!-- SCORING RULES -->
   <div class="card">
@@ -451,7 +639,6 @@ body {
 <script>
 const COLORS = __COLORS_JSON__;
 const SLUG   = '__SLUG__';
-let currentTab = 'combined';
 let allData = null;
 let members = [];
 
@@ -488,6 +675,7 @@ async function loadData() {
   document.getElementById('status-text').textContent = 'Fetching scores…';
   try {
     const params = encodeURIComponent(members.join(','));
+    window._currentMembers = members;
     const res = await fetch('/api/data?members=' + params);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     allData = await res.json();
@@ -499,55 +687,32 @@ async function loadData() {
 }
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
-function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['combined','atp','wta'][i] === tab);
-  });
-  const map = {
-    combined: ['Combined Standings', 'ATP + WTA · served.bracket.tennis'],
-    atp:      ["Men's Draw (ATP)",   'Individual ATP bracket scores'],
-    wta:      ["Women's Draw (WTA)", 'Individual WTA bracket scores'],
-  };
-  document.getElementById('section-title').textContent = map[tab][0];
-  document.getElementById('section-sub').textContent   = map[tab][1];
-  render();
-}
-
 function render() {
   if (!allData) return;
   const players = allData.players;
-  const tab = currentTab;
 
-  const sorted = [...players].sort((a, b) => {
-    const va = tab === 'atp' ? a.atp : tab === 'wta' ? a.wta : (a.combined ?? -1);
-    const vb = tab === 'atp' ? b.atp : tab === 'wta' ? b.wta : (b.combined ?? -1);
-    return (vb ?? -1) - (va ?? -1);
-  });
-
-  const maxScore = sorted.reduce((m, p) => {
-    const v = tab === 'atp' ? p.atp : tab === 'wta' ? p.wta : p.combined;
-    return Math.max(m, v ?? 0);
-  }, 1);
-
+  const sorted = [...players].sort((a, b) => (b.combined ?? -1) - (a.combined ?? -1));
+  const maxScore = sorted.reduce((m, p) => Math.max(m, p.combined ?? 0), 1);
   const tbody = document.getElementById('lb-body');
 
   tbody.innerHTML = sorted.map((p, i) => {
     const rank  = i + 1;
     const c     = COLORS[String(p.color_idx)] || COLORS['0'];
-    const score = tab === 'atp' ? p.atp : tab === 'wta' ? p.wta : p.combined;
-    const pct   = score != null ? Math.round((score / maxScore) * 100) : 0;
+    const pct   = p.combined != null ? Math.round((p.combined / maxScore) * 100) : 0;
     const bracketUrl = `https://served.bracket.tennis/tournaments/${SLUG}/combined/brackets/${encodeURIComponent(p.username)}`;
     const atpPill  = p.atp  != null ? `<span class="score-pill pill-atp">${p.atp.toLocaleString()}</span>`  : `<span class="score-pill pill-none">–</span>`;
     const wtaPill  = p.wta  != null ? `<span class="score-pill pill-wta">${p.wta.toLocaleString()}</span>`  : `<span class="score-pill pill-none">–</span>`;
     const combPill = p.combined != null ? `<span class="score-pill pill-combined">${p.combined.toLocaleString()}</span>` : `<span class="score-pill pill-none">–</span>`;
+    const maxPill  = p.max_combined != null
+      ? `<span style="font-size:0.78rem;color:#7d5a00;font-family:sans-serif;font-weight:600;white-space:nowrap;">▲ ${p.max_combined.toLocaleString()}</span>`
+      : `<span class="score-pill pill-none">–</span>`;
     return `<tr>
       <td class="rank-cell ${rank<=3?'gold':''}">${rank<=3?['🥇','🥈','🥉'][rank-1]:rank}</td>
       <td>
         <div class="player-name"><a class="name-link" href="${bracketUrl}" target="_blank" rel="noopener" style="color:${c.primary}">${esc(p.username)}</a></div>
         <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${c.primary}"></div></div>
       </td>
-      <td>${atpPill}</td><td>${wtaPill}</td><td class="right">${combPill}</td>
+      <td>${atpPill}</td><td>${wtaPill}</td><td class="right">${combPill}</td><td class="right">${maxPill}</td>
     </tr>`;
   }).join('');
 
@@ -556,7 +721,7 @@ function render() {
 
 // ── EMPTY STATE ───────────────────────────────────────────────────────────────
 function showEmpty() {
-  document.getElementById('lb-body').innerHTML = `<tr><td colspan="5" style="padding:48px;text-align:center;font-family:sans-serif;color:#aaa;">
+  document.getElementById('lb-body').innerHTML = `<tr><td colspan="6" style="padding:48px;text-align:center;font-family:sans-serif;color:#aaa;">
     <div style="font-size:2rem;margin-bottom:10px">👥</div>
     <div style="font-size:1rem;color:#006b3c;font-weight:600;margin-bottom:6px">Set up your group</div>
     <div style="font-size:0.85rem;margin-bottom:16px">Click <strong>⚙ Group</strong> in the header to add your served.bracket.tennis usernames.</div>
@@ -711,10 +876,11 @@ def _extract_bracket_data(flat):
             matches_refs = flat[i + 1]
             break
     if not matches_refs:
-        return {}, {}
+        return {}, {}, []
 
     r1_draw = {}
     match_results = {}
+    all_matches = []
 
     for ref in matches_refs:
         raw = flat[ref]
@@ -740,13 +906,32 @@ def _extract_bracket_data(flat):
 
         if winner.get('name'):
             wname = winner['name']
+            lname = p2.get('name') if p1.get('name') == wname else p1.get('name')
             r1 = p1.get('ranking') or 999
             r2 = p2.get('ranking') or 999
             wr = r1 if p1.get('name') == wname else r2
             lr = r2 if p1.get('name') == wname else r1
-            match_results[(rnd, pos)] = {'winner': wname, 'wr': wr, 'lr': lr}
+            match_results[(rnd, pos)] = {'winner': wname, 'loser': lname, 'wr': wr, 'lr': lr}
 
-    return r1_draw, match_results
+        def _ctry(pobj):
+            c = pobj.get('country')
+            if isinstance(c, dict):
+                return (c.get('code') or c.get('abbreviation') or '').upper()
+            return (c or '').upper()
+
+        all_matches.append({
+            'round': rnd,
+            'pos': pos,
+            'p1': p1.get('name') or None,
+            'p2': p2.get('name') or None,
+            'p1_rank': p1.get('ranking') or 999,
+            'p2_rank': p2.get('ranking') or 999,
+            'p1_country': _ctry(p1),
+            'p2_country': _ctry(p2),
+            'winner': winner.get('name') or None,
+        })
+
+    return r1_draw, match_results, all_matches
 
 
 def _extract_picks(html):
@@ -818,6 +1003,25 @@ def _calculate_score(picks, r1_draw, match_results):
     return total
 
 
+def _calculate_max_score(picks, r1_draw, match_results):
+    """Max possible score = current correct picks + base points for future picks
+    where the picked player hasn't been eliminated yet."""
+    current = _calculate_score(picks, r1_draw, match_results)
+    eliminated = {r['loser'] for r in match_results.values() if r.get('loser')}
+    future = 0
+    for (rnd, mpos), slot in picks.items():
+        if not (1 <= rnd <= 7):
+            continue
+        if match_results.get((rnd, mpos)):
+            continue  # completed match already in current score
+        if slot not in r1_draw:
+            continue
+        player_name, _ = r1_draw[slot]
+        if player_name not in eliminated:
+            future += ROUND_POINTS[rnd]
+    return current + future
+
+
 # Tournament data cache: shared draw+results across all users per request
 _tourney_cache    = {}
 _tourney_cache_ts = {}
@@ -837,15 +1041,15 @@ def _get_tournament_data(tour, members):
             html = _fetch_bracket_html(username, tour)
             flat = _parse_flat_array(html)
             if flat:
-                r1_draw, match_results = _extract_bracket_data(flat)
+                r1_draw, match_results, all_matches = _extract_bracket_data(flat)
                 if r1_draw:
-                    _tourney_cache[tour] = (r1_draw, match_results)
+                    _tourney_cache[tour] = (r1_draw, match_results, all_matches)
                     _tourney_cache_ts[tour] = now
-                    return r1_draw, match_results
+                    return r1_draw, match_results, all_matches
         except Exception:
             continue
 
-    return {}, {}
+    return {}, {}, []
 
 
 def get_data(members=None):
@@ -855,18 +1059,20 @@ def get_data(members=None):
         return {'players': [], 'updated': datetime.now().strftime('%b %d, %Y · %I:%M:%S %p')}
 
     # Shared draw + results for ATP and WTA (one fetch per tour, reused for all members)
-    atp_draw, atp_results = _get_tournament_data('atp', members)
-    wta_draw, wta_results = _get_tournament_data('wta', members)
+    atp_draw, atp_results, _ = _get_tournament_data('atp', members)
+    wta_draw, wta_results, _ = _get_tournament_data('wta', members)
 
     players = []
     for i, member in enumerate(members):
         atp_score = wta_score = None
+        atp_max = wta_max = None
 
         try:
             html = _fetch_bracket_html(member, 'atp')
             picks = _extract_picks(html)
             if picks and atp_draw:
                 atp_score = _calculate_score(picks, atp_draw, atp_results)
+                atp_max   = _calculate_max_score(picks, atp_draw, atp_results)
         except Exception:
             pass
 
@@ -875,6 +1081,7 @@ def get_data(members=None):
             picks = _extract_picks(html)
             if picks and wta_draw:
                 wta_score = _calculate_score(picks, wta_draw, wta_results)
+                wta_max   = _calculate_max_score(picks, wta_draw, wta_results)
         except Exception:
             pass
 
@@ -886,12 +1093,21 @@ def get_data(members=None):
         elif wta_score is not None:
             combined = wta_score
 
+        max_combined = None
+        if atp_max is not None and wta_max is not None:
+            max_combined = atp_max + wta_max
+        elif atp_max is not None:
+            max_combined = atp_max
+        elif wta_max is not None:
+            max_combined = wta_max
+
         players.append({
-            'username':  member,
-            'atp':       atp_score,
-            'wta':       wta_score,
-            'combined':  combined,
-            'color_idx': i % len(COLORS),
+            'username':     member,
+            'atp':          atp_score,
+            'wta':          wta_score,
+            'combined':     combined,
+            'max_combined': max_combined,
+            'color_idx':    i % len(COLORS),
         })
 
     players.sort(key=lambda p: (-(p['combined'] or -1), -(p['atp'] or -1)))
@@ -921,7 +1137,6 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/api/data'):
             try:
-                # Parse ?members=user1,user2,user3 from query string
                 members = None
                 if '?' in self.path:
                     qs = self.path.split('?', 1)[1]
@@ -931,6 +1146,24 @@ class Handler(BaseHTTPRequestHandler):
                             members = [m.strip() for m in val.split(',') if m.strip()]
                 data = get_data(members)
                 body = json.dumps(data).encode()
+                self.send_body(body, 'application/json')
+            except Exception as e:
+                self.send_body(str(e).encode(), 'text/plain', 500)
+        elif self.path.startswith('/api/bracket'):
+            try:
+                tour = 'atp'
+                members = None
+                if '?' in self.path:
+                    qs = self.path.split('?', 1)[1]
+                    for part in qs.split('&'):
+                        if part.startswith('tour='):
+                            tour = part[5:].lower()
+                        elif part.startswith('members='):
+                            val = urllib.request.unquote(part[8:])
+                            members = [m.strip() for m in val.split(',') if m.strip()]
+                members = members or MEMBERS
+                _, _, all_matches = _get_tournament_data(tour, members)
+                body = json.dumps({'tour': tour, 'matches': all_matches}).encode()
                 self.send_body(body, 'application/json')
             except Exception as e:
                 self.send_body(str(e).encode(), 'text/plain', 500)
