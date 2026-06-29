@@ -428,13 +428,13 @@ body {
       </div>
     </div>
 
-    <!-- Round labels -->
-    <div id="bracket-round-labels" style="display:flex;overflow-x:auto;padding:8px 0 0 0;border-bottom:1px solid #e8e4d8;scrollbar-width:none;">
-    </div>
-
-    <!-- Bracket body -->
-    <div id="bracket-body" style="overflow-x:auto;overflow-y:auto;max-height:480px;background:#fafaf8;">
-      <div style="padding:40px;text-align:center;color:#aaa;font-size:0.85rem;font-family:sans-serif;">Loading bracket…</div>
+    <!-- Single scrollable container: labels + bracket scroll together -->
+    <div id="bracket-scroll" style="overflow-x:auto;overflow-y:auto;max-height:520px;background:#fafaf8;-webkit-overflow-scrolling:touch;">
+      <div id="bracket-round-labels" style="display:flex;position:sticky;top:0;z-index:5;background:#f0ede6;border-bottom:1px solid #e8e4d8;">
+      </div>
+      <div id="bracket-body">
+        <div style="padding:40px;text-align:center;color:#aaa;font-size:0.85rem;font-family:sans-serif;">Loading bracket…</div>
+      </div>
     </div>
   </div>
 
@@ -646,11 +646,6 @@ body {
 
       container.innerHTML = '';
       container.appendChild(wrap);
-
-      // Sync horizontal scroll between labels and body
-      container.onscroll = function() {
-        labelsEl.scrollLeft = container.scrollLeft;
-      };
     }
 
     // Load ATP bracket on page load (after a short delay so scores load first)
