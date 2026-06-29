@@ -333,7 +333,7 @@ body {
   <div class="hero-pills">
     <span class="hero-pill">🎾 Men's &amp; Women's Draw</span>
     <span class="hero-pill gold">🏅 served.bracket.tennis</span>
-    <span class="hero-pill">🇬🇧 SW19 · June 30 – July 13</span>
+    <span class="hero-pill">🎾 Page &amp; Will's Wimbledon Challenge</span>
   </div>
 </div>
 
@@ -341,7 +341,7 @@ body {
 <div class="sc-banner">
   <div class="sc-grass"><span></span><span></span><span></span><span></span><span></span></div>
   <span class="berry">🍓</span>
-  <span>Strawberries &amp; Cream · SW19</span>
+  <span>Page &amp; Will's Wimbledon Challenge</span>
   <span class="berry">🍓</span>
   <div class="sc-grass"><span></span><span></span><span></span><span></span><span></span></div>
 </div>
@@ -389,8 +389,8 @@ body {
         <tr>
           <th>#</th>
           <th>Player</th>
-          <th>ATP</th>
-          <th>WTA</th>
+          <th>Men's</th>
+          <th>Women's</th>
           <th class="right">Combined</th>
           <th class="right">Max Pts</th>
         </tr>
@@ -453,11 +453,10 @@ body {
       loadBracket(tour);
     };
 
-    function loadBracket(tour) {
+    function loadBracket(tour, bustCache) {
       var body = document.getElementById('bracket-body');
       var labelsEl = document.getElementById('bracket-round-labels');
-      if (_bCache[tour]) { renderBracket(_bCache[tour], body, labelsEl); return; }
-      body.innerHTML = '<div style="padding:40px;text-align:center;color:#aaa;font-size:0.85rem;font-family:sans-serif;">Loading bracket…</div>';
+      if (_bCache[tour] && !bustCache) { renderBracket(_bCache[tour], body, labelsEl); return; }
       var membersParam = (window._currentMembers && window._currentMembers.length)
         ? '&members=' + encodeURIComponent(window._currentMembers.join(',')) : '';
       fetch('/api/bracket?tour=' + tour + membersParam)
@@ -467,9 +466,13 @@ body {
           renderBracket(data, body, labelsEl);
         })
         .catch(function(e){
-          body.innerHTML = '<div style="padding:40px;text-align:center;color:#c0392b;font-size:0.85rem;font-family:sans-serif;">Could not load bracket.</div>';
+          if (!_bCache[tour])
+            body.innerHTML = '<div style="padding:40px;text-align:center;color:#c0392b;font-size:0.85rem;font-family:sans-serif;">Could not load bracket.</div>';
         });
     }
+
+    // Re-poll every 45 s to pick up live score/status changes
+    setInterval(function(){ loadBracket(_bTour, true); }, 45000);
 
     var ROUND_LABELS = ['','R1','R2','R3','R4','QF','SF','F'];
     var ROUND_COLORS = {
@@ -514,6 +517,15 @@ body {
       return parts[parts.length - 1];
     }
 
+    function formatSetScore(score) {
+      if (!score || !Array.isArray(score) || !score.length) return null;
+      // [[p1,p2], [p1,p2], ...] or flat numbers
+      return score.map(function(s) {
+        if (Array.isArray(s) && s.length >= 2) return s[0] + '-' + s[1];
+        return String(s);
+      }).join('  ');
+    }
+
     function renderBracket(data, container, labelsEl) {
       var matches = data.matches || [];
       if (!matches.length) {
@@ -521,6 +533,11 @@ body {
         labelsEl.innerHTML = '';
         return;
       }
+
+      // Build live-player lookup from ESPN overlay
+      var liveSet = {};
+      (data.live_players || []).forEach(function(n){ liveSet[n] = true; });
+      var espnScores = data.espn_scores || {};
 
       // Group by round, sort by pos
       var rounds = {};
@@ -552,23 +569,27 @@ body {
         var col = document.createElement('div');
         col.style.cssText = 'display:flex;flex-direction:column;width:' + COL_W + 'px;flex-shrink:0;border-right:1px solid #e8e4d8;';
 
-        rMatches.forEach(function(m, mi) {
+        rMatches.forEach(function(m) {
+          var isLive = (m.p1 && liveSet[m.p1]) || (m.p2 && liveSet[m.p2]);
+          var isComplete = !!m.winner;
+
           var slot = document.createElement('div');
           slot.style.cssText = 'flex:1;display:flex;align-items:center;padding:0 3px;';
 
           var card = document.createElement('div');
-          card.style.cssText = 'width:100%;border-radius:4px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);';
+          card.style.cssText = 'width:100%;border-radius:4px;overflow:hidden;'
+            + 'box-shadow:' + (isLive ? '0 0 0 2px #c0392b' : '0 1px 3px rgba(0,0,0,0.08)') + ';';
 
           [
             { name: m.p1, rank: m.p1_rank, country: m.p1_country },
             { name: m.p2, rank: m.p2_rank, country: m.p2_country }
           ].forEach(function(p, pi) {
-            var isWinner = m.winner && m.winner === p.name;
-            var isTbd = !p.name;
+            var isWinner = isComplete && m.winner === p.name;
+            var isLoser  = isComplete && m.winner !== p.name && !!p.name;
+            var isTbd    = !p.name;
+            var playerLive = p.name && liveSet[p.name];
+
             var row = document.createElement('div');
-            var flag = p.country ? countryFlag(p.country) : '';
-            var seed = (p.rank && p.rank <= 32) ? '[' + p.rank + '] ' : '';
-            row.textContent = (flag ? flag + ' ' : '') + seed + lastName(p.name);
             row.style.cssText = [
               'height:' + ROW_H + 'px',
               'line-height:' + ROW_H + 'px',
@@ -578,14 +599,53 @@ body {
               'white-space:nowrap',
               'text-overflow:ellipsis',
               'font-family:sans-serif',
-              'border:1px solid ' + (isWinner ? '#9ecfad' : '#e0dbd0'),
-              pi === 0 ? 'border-bottom:1px solid #e8e4d8' : '',
-              'background:' + (isWinner ? '#d4f0dc' : isTbd ? '#f5f4f0' : '#fff'),
-              'color:' + (isWinner ? '#00512e' : isTbd ? '#bbb' : '#1a1a1a'),
+              'display:flex',
+              'align-items:center',
+              'justify-content:space-between',
+              'border:1px solid ' + (isWinner ? '#9ecfad' : isLive ? '#e8a0a0' : '#e0dbd0'),
+              pi === 0 ? 'border-bottom:1px solid ' + (isLive ? '#e8a0a0' : '#e8e4d8') : '',
+              'background:' + (isWinner ? '#d4f0dc' : isLive ? '#fff5f5' : isTbd ? '#f5f4f0' : '#fff'),
+              'color:' + (isWinner ? '#00512e' : isLoser ? '#999' : isTbd ? '#ccc' : '#1a1a1a'),
               'font-weight:' + (isWinner ? '600' : '400'),
             ].join(';');
+
+            var flag = p.country ? countryFlag(p.country) : '';
+            var seed = (p.rank && p.rank <= 32) ? '[' + p.rank + ']' : '';
+            var nameSpan = document.createElement('span');
+            nameSpan.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;';
+            nameSpan.textContent = (flag ? flag + ' ' : '') + (seed ? seed + ' ' : '') + lastName(p.name);
+            row.appendChild(nameSpan);
+
+            // LIVE dot on first row only
+            if (isLive && pi === 0) {
+              var dot = document.createElement('span');
+              dot.style.cssText = 'flex-shrink:0;width:6px;height:6px;border-radius:50%;background:#c0392b;margin-left:4px;animation:blink 1.5s ease-in-out infinite;display:inline-block;';
+              row.appendChild(dot);
+            }
+
             card.appendChild(row);
           });
+
+          // Score row — show final set scores (from turbo-stream) or ESPN live score
+          var scoreStr = null;
+          if (isComplete) {
+            scoreStr = formatSetScore(m.score);
+            // fallback: try ESPN scores for either player
+            if (!scoreStr) scoreStr = (m.p1 && espnScores[m.p1]) || (m.p2 && espnScores[m.p2]) || null;
+          } else if (isLive) {
+            scoreStr = (m.p1 && espnScores[m.p1]) || (m.p2 && espnScores[m.p2]) || null;
+          }
+
+          if (scoreStr) {
+            var scoreRow = document.createElement('div');
+            scoreRow.style.cssText = 'padding:2px 6px 3px;font-size:9.5px;font-family:sans-serif;'
+              + 'color:' + (isLive ? '#c0392b' : '#888') + ';'
+              + 'background:' + (isLive ? '#fff0f0' : '#f7f5f0') + ';'
+              + 'border:1px solid ' + (isLive ? '#e8a0a0' : '#e0dbd0') + ';border-top:none;'
+              + 'letter-spacing:0.5px;';
+            scoreRow.textContent = isLive ? '● ' + scoreStr : scoreStr;
+            card.appendChild(scoreRow);
+          }
 
           slot.appendChild(card);
           col.appendChild(slot);
@@ -605,6 +665,100 @@ body {
 
     // Load ATP bracket on page load (after a short delay so scores load first)
     setTimeout(function(){ loadBracket('atp'); }, 800);
+  })();
+  </script>
+
+  <!-- DRAFTKINGS ODDS -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header" style="margin-bottom:0;">
+      <div>
+        <div class="card-title">📊 Wimbledon Odds</div>
+        <div class="card-sub">Outright winner · DraftKings Sportsbook</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="odds-btn-atp" onclick="switchOddsTour('atp')"
+          style="padding:6px 16px;border-radius:100px;border:2px solid #00512e;background:#00512e;color:#fff;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:sans-serif;letter-spacing:0.5px;">
+          Men's
+        </button>
+        <button id="odds-btn-wta" onclick="switchOddsTour('wta')"
+          style="padding:6px 16px;border-radius:100px;border:2px solid #ddd8cc;background:#fff;color:#4b006e;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:sans-serif;letter-spacing:0.5px;">
+          Women's
+        </button>
+      </div>
+    </div>
+    <div id="odds-body" style="padding:16px 0 4px;">
+      <div style="text-align:center;color:#aaa;font-size:0.85rem;font-family:sans-serif;padding:20px;">Loading odds…</div>
+    </div>
+    <div style="padding:8px 20px 14px;font-size:0.7rem;font-family:sans-serif;color:#aaa;text-align:right;">
+      Odds via DraftKings · refreshes every 5 min · must be 21+ · gambling problem? call 1-800-522-4700
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    var _oddsTour = 'atp';
+    var _oddsData = null;
+
+    window.switchOddsTour = function(tour) {
+      _oddsTour = tour;
+      document.getElementById('odds-btn-atp').style.cssText =
+        'padding:6px 16px;border-radius:100px;border:2px solid ' + (tour==='atp'?'#00512e':'#ddd8cc') +
+        ';background:' + (tour==='atp'?'#00512e':'#fff') +
+        ';color:' + (tour==='atp'?'#fff':'#00512e') +
+        ';font-size:0.78rem;font-weight:700;cursor:pointer;font-family:sans-serif;letter-spacing:0.5px;';
+      document.getElementById('odds-btn-wta').style.cssText =
+        'padding:6px 16px;border-radius:100px;border:2px solid ' + (tour==='wta'?'#4b006e':'#ddd8cc') +
+        ';background:' + (tour==='wta'?'#4b006e':'#fff') +
+        ';color:' + (tour==='wta'?'#fff':'#4b006e') +
+        ';font-size:0.78rem;font-weight:700;cursor:pointer;font-family:sans-serif;letter-spacing:0.5px;';
+      if (_oddsData) renderOdds(_oddsData);
+    };
+
+    function renderOdds(data) {
+      var el = document.getElementById('odds-body');
+      var list = (data[_oddsTour] || []);
+
+      if (data.error && !list.length) {
+        el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:0.82rem;font-family:sans-serif;padding:20px 16px;">'
+          + 'Odds unavailable — ' + data.error + '</div>';
+        return;
+      }
+      if (!list.length) {
+        el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:0.82rem;font-family:sans-serif;padding:20px;">No ' + (_oddsTour==='atp'?"Men's":"Women's") + ' odds available yet.</div>';
+        return;
+      }
+
+      var rows = list.map(function(item, i) {
+        var name = item[0], odds = item[1];
+        var pos = odds && odds[0] === '+';
+        var fav = odds && odds[0] === '-';
+        var oddsColor = pos ? '#00512e' : fav ? '#c0392b' : '#333';
+        var oddsBg    = pos ? 'rgba(0,81,46,0.07)' : fav ? 'rgba(192,57,43,0.07)' : '#f9f7f4';
+        return '<div style="display:flex;align-items:center;padding:9px 20px;border-bottom:1px solid #f0ece0;gap:12px;">'
+          + '<div style="width:22px;text-align:center;font-size:0.75rem;font-weight:700;color:#aaa;font-family:sans-serif;flex-shrink:0;">' + (i+1) + '</div>'
+          + '<div style="flex:1;font-size:0.88rem;font-family:\'EB Garamond\',Georgia,serif;color:#1a1a1a;">' + name + '</div>'
+          + '<div style="font-size:0.9rem;font-weight:700;font-family:sans-serif;color:' + oddsColor + ';background:' + oddsBg + ';padding:3px 10px;border-radius:100px;letter-spacing:0.3px;flex-shrink:0;">' + odds + '</div>'
+          + '</div>';
+      }).join('');
+
+      el.innerHTML = rows;
+    }
+
+    function loadOdds() {
+      fetch('/api/odds')
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          _oddsData = data;
+          renderOdds(data);
+        })
+        .catch(function(){
+          document.getElementById('odds-body').innerHTML =
+            '<div style="text-align:center;color:#aaa;font-size:0.82rem;font-family:sans-serif;padding:20px;">Could not reach DraftKings.</div>';
+        });
+    }
+
+    loadOdds();
+    setInterval(loadOdds, 5 * 60 * 1000);
   })();
   </script>
 
@@ -919,6 +1073,14 @@ def _extract_bracket_data(flat):
                 return (c.get('code') or c.get('abbreviation') or '').upper()
             return (c or '').upper()
 
+        # Extract set scores — may be [[p1_games, p2_games], ...] or None
+        score_raw = m.get('score') or m.get('sets') or m.get('result')
+        score = score_raw if isinstance(score_raw, list) else None
+
+        # Extract match status string (e.g. 'completed', 'in_progress', 'upcoming')
+        status_raw = m.get('status') or m.get('matchStatus') or m.get('state')
+        status = status_raw if isinstance(status_raw, str) else None
+
         all_matches.append({
             'round': rnd,
             'pos': pos,
@@ -929,6 +1091,8 @@ def _extract_bracket_data(flat):
             'p1_country': _ctry(p1),
             'p2_country': _ctry(p2),
             'winner': winner.get('name') or None,
+            'score': score,
+            'status': status,
         })
 
     return r1_draw, match_results, all_matches
@@ -1020,6 +1184,149 @@ def _calculate_max_score(picks, r1_draw, match_results):
         if player_name not in eliminated:
             future += ROUND_POINTS[rnd]
     return current + future
+
+
+# ── ESPN live-match overlay ───────────────────────────────────────────────────
+
+_espn_live_cache    = {}   # tour -> {'live': set_of_names, 'scores': {name: score_str}}
+_espn_live_cache_ts = {}
+
+def _fetch_espn_live(tour):
+    """
+    Returns {'live': {player_name, ...}, 'scores': {player_name: score_str}}
+    by polling the ESPN ATP/WTA scoreboard.  Cached 45 seconds.
+    """
+    now = time.time()
+    if tour in _espn_live_cache and now - _espn_live_cache_ts.get(tour, 0) < 45:
+        return _espn_live_cache[tour]
+
+    slug = 'atp' if tour == 'atp' else 'wta'
+    url  = f'https://site.api.espn.com/apis/site/v2/sports/tennis/{slug}/scoreboard'
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            data = json.loads(r.read().decode())
+
+        live   = set()
+        scores = {}
+
+        for event in data.get('events', []):
+            for comp in event.get('competitions', []):
+                stype = (comp.get('status') or {}).get('type') or {}
+                state = stype.get('name', '')
+                completed = stype.get('completed', False)
+
+                competitors = comp.get('competitors', [])
+                names = []
+                for c in competitors:
+                    name = (c.get('athlete') or {}).get('fullName', '')
+                    if name:
+                        names.append(name)
+
+                if state == 'STATUS_IN_PROGRESS' and not completed:
+                    for name in names:
+                        live.add(name)
+
+                # Build score string from linescores or top-level score
+                sets_data = comp.get('linescores') or []
+                if sets_data and names:
+                    set_strs = []
+                    for s in sets_data:
+                        vals = s.get('displayValue', '')
+                        if vals:
+                            set_strs.append(vals)
+                    if set_strs:
+                        score_str = '  '.join(set_strs)
+                        for name in names:
+                            scores[name] = score_str
+
+        result = {'live': live, 'scores': scores}
+        _espn_live_cache[tour]    = result
+        _espn_live_cache_ts[tour] = now
+        return result
+    except Exception:
+        return {'live': set(), 'scores': {}}
+
+
+# ── DraftKings odds ───────────────────────────────────────────────────────────
+
+_dk_cache    = {}
+_dk_cache_ts = {}
+_DK_HEADERS  = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    'Accept': 'application/json',
+    'Referer': 'https://sportsbook.draftkings.com/',
+}
+_DK_BASE = 'https://sportsbook-us-nj.draftkings.com/sites/US-NJ-SB/api/v5'
+
+
+def _dk_get(path):
+    req = urllib.request.Request(_DK_BASE + path, headers=_DK_HEADERS)
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read().decode())
+
+
+def _dk_walk_offers(data):
+    """Yield (offer_label, outcomes_list) from a DraftKings v5 response."""
+    eg = data.get('eventGroup') or {}
+    for cat in eg.get('offerCategories') or []:
+        for desc in cat.get('offerSubcategoryDescriptors') or []:
+            subcat = desc.get('offerSubcategory') or {}
+            for offer in subcat.get('offers') or []:
+                yield offer.get('label', ''), offer.get('outcomes') or []
+
+
+def _fetch_dk_odds():
+    """
+    Fetch Wimbledon outright-winner odds from DraftKings.
+    Returns {'atp': [(name, american_odds), ...], 'wta': [...], 'error': str|None}
+    Cached 5 minutes.
+    """
+    now = time.time()
+    if 'dk' in _dk_cache and now - _dk_cache_ts.get('dk', 0) < 300:
+        return _dk_cache['dk']
+
+    result = {'atp': [], 'wta': [], 'error': None}
+    try:
+        # Step 1: list subcategories for tennis futures (eventgroup 9, category 587)
+        top = _dk_get('/eventgroups/9/categories/587/subcategories')
+        eg  = top.get('eventGroup') or {}
+
+        wimbledon_ids = {'atp': [], 'wta': []}
+        for cat in eg.get('offerCategories') or []:
+            for desc in cat.get('offerSubcategoryDescriptors') or []:
+                name  = (desc.get('name') or '').lower()
+                sub_id = desc.get('subcategoryId')
+                if not sub_id or 'wimbledon' not in name:
+                    continue
+                if "women" in name or "wta" in name or "ladies" in name:
+                    wimbledon_ids['wta'].append(sub_id)
+                else:
+                    wimbledon_ids['atp'].append(sub_id)
+
+        # Step 2: fetch each matched subcategory and pull top-10 outcomes
+        for tour, ids in wimbledon_ids.items():
+            for sub_id in ids[:2]:
+                try:
+                    sub = _dk_get(f'/eventgroups/9/categories/587/subcategories/{sub_id}')
+                    for label, outcomes in _dk_walk_offers(sub):
+                        if outcomes and not result[tour]:
+                            result[tour] = [
+                                (o.get('label', ''), o.get('oddsAmerican', ''))
+                                for o in outcomes[:10]
+                                if o.get('label') and o.get('oddsAmerican')
+                            ]
+                except Exception:
+                    continue
+
+        if not result['atp'] and not result['wta']:
+            result['error'] = 'No Wimbledon markets found on DraftKings'
+    except Exception as e:
+        result['error'] = str(e)
+
+    _dk_cache['dk']    = result
+    _dk_cache_ts['dk'] = now
+    return result
 
 
 # Tournament data cache: shared draw+results across all users per request
@@ -1163,10 +1470,22 @@ class Handler(BaseHTTPRequestHandler):
                             members = [m.strip() for m in val.split(',') if m.strip()]
                 members = members or MEMBERS
                 _, _, all_matches = _get_tournament_data(tour, members)
-                body = json.dumps({'tour': tour, 'matches': all_matches}).encode()
+                espn = _fetch_espn_live(tour)
+                body = json.dumps({
+                    'tour': tour,
+                    'matches': all_matches,
+                    'live_players': list(espn['live']),
+                    'espn_scores': espn['scores'],
+                }).encode()
                 self.send_body(body, 'application/json')
             except Exception as e:
                 self.send_body(str(e).encode(), 'text/plain', 500)
+        elif self.path.startswith('/api/odds'):
+            try:
+                body = json.dumps(_fetch_dk_odds()).encode()
+                self.send_body(body, 'application/json')
+            except Exception as e:
+                self.send_body(json.dumps({'atp':[],'wta':[],'error':str(e)}).encode(), 'application/json')
         else:
             self.send_body(BUILT_HTML, 'text/html; charset=utf-8')
 
