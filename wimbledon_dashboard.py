@@ -187,23 +187,28 @@ body {
 .card-sub { font-size: 0.74rem; font-family: sans-serif; color: var(--muted); margin-top: 3px; }
 
 /* ── TABLE ── */
-.lb-table { width: 100%; border-collapse: collapse; font-family: sans-serif; }
+.lb-table { width: 100%; border-collapse: collapse; font-family: sans-serif; table-layout: fixed; }
 .lb-table th {
-  text-align: left; padding: 9px 14px;
-  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em;
+  text-align: center; padding: 8px 4px;
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--muted); border-bottom: 2px solid var(--border);
-  background: var(--bg);
+  background: var(--bg); white-space: nowrap; overflow: hidden;
 }
-.lb-table th.right, .lb-table td.right { text-align: right; }
+.lb-table th:nth-child(1) { width: 28px; text-align: center; }
+.lb-table th:nth-child(2) { width: 26%; text-align: left; }
+.lb-table th:nth-child(3), .lb-table th:nth-child(4),
+.lb-table th:nth-child(5), .lb-table th:nth-child(6) { width: 18.5%; }
 .lb-table td {
-  padding: 13px 10px; border-bottom: 1px solid var(--border);
-  font-size: 0.92rem; vertical-align: middle;
+  padding: 10px 4px; border-bottom: 1px solid var(--border);
+  font-size: 0.82rem; vertical-align: middle; text-align: center;
+  overflow: hidden;
 }
-.lb-table td:nth-child(2) { max-width: 130px; }
+.lb-table td:nth-child(1) { text-align: center; }
+.lb-table td:nth-child(2) { text-align: left; overflow: hidden; }
 .lb-table tr:last-child td { border-bottom: none; }
 .lb-table tr:hover td { background: #f9f6ef; }
 
-.rank-cell { color: var(--muted); font-size: 0.82rem; width: 40px; }
+.rank-cell { color: var(--muted); font-size: 0.82rem; }
 .rank-cell.gold { color: var(--gold); font-size: 1rem; }
 
 /* ── PLAYER ROW STYLING ── */
@@ -214,8 +219,8 @@ body {
 .name-link:hover { text-decoration: underline; }
 
 .score-pill {
-  display: inline-block; padding: 3px 10px; border-radius: 14px;
-  font-size: 0.82rem; font-weight: 700;
+  display: inline-block; padding: 3px 7px; border-radius: 14px;
+  font-size: 0.78rem; font-weight: 700;
 }
 .pill-atp      { background: #e8f4ee; color: #1a6b3c; }
 .pill-wta      { background: #f3e8f4; color: #6b1a6b; }
@@ -389,12 +394,12 @@ body {
     <table class="lb-table" style="min-width:340px;width:100%;table-layout:fixed;">
       <thead>
         <tr>
-          <th style="width:8%;">#</th>
-          <th style="width:30%;">Player</th>
-          <th style="width:15%;text-align:center;">Men's</th>
-          <th style="width:15%;text-align:center;">Women's</th>
-          <th style="width:16%;text-align:center;">Combined</th>
-          <th style="width:16%;text-align:center;">Max Pts</th>
+          <th>#</th>
+          <th>Player</th>
+          <th>Mens</th>
+          <th>Womens</th>
+          <th>Combined</th>
+          <th>Max Pts</th>
         </tr>
       </thead>
       <tbody id="lb-body">
@@ -851,7 +856,7 @@ function render() {
     const wtaPill  = p.wta  != null ? `<span class="score-pill pill-wta">${p.wta.toLocaleString()}</span>`  : `<span class="score-pill pill-none">–</span>`;
     const combPill = p.combined != null ? `<span class="score-pill pill-combined">${p.combined.toLocaleString()}</span>` : `<span class="score-pill pill-none">–</span>`;
     const maxPill  = p.max_combined != null
-      ? `<span style="font-size:0.78rem;color:#7d5a00;font-family:sans-serif;font-weight:600;white-space:nowrap;">▲ ${p.max_combined.toLocaleString()}</span>`
+      ? `<span style="font-size:0.78rem;color:#7d5a00;font-family:sans-serif;font-weight:600;">▲ ${p.max_combined.toLocaleString()}</span>`
       : `<span class="score-pill pill-none">–</span>`;
     return `<tr>
       <td class="rank-cell ${rank<=3?'gold':''}">${rank<=3?['🥇','🥈','🥉'][rank-1]:rank}</td>
