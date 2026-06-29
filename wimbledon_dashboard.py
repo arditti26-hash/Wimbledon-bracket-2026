@@ -457,34 +457,26 @@ let members = [];
 
 // ── MEMBER STORAGE ────────────────────────────────────────────────────────────
 function loadMembers() {
-  const raw = location.hash.slice(1);
-  if (raw) {
-    try {
-      // Support plain comma-separated list (new format) and old base64 format
-      let fromUrl;
-      if (raw.startsWith('WyJ') || raw.startsWith('%5B')) {
-        // old base64 format — try to decode for backwards compat
-        let b64 = decodeURIComponent(raw);
-        b64 = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
-        fromUrl = JSON.parse(atob(b64));
-      } else {
-        // new plain comma-separated format
-        fromUrl = decodeURIComponent(raw).split(',').map(s => s.trim()).filter(Boolean);
-      }
-      if (Array.isArray(fromUrl) && fromUrl.length > 0) {
-        localStorage.setItem('wim_members', JSON.stringify(fromUrl));
-        history.replaceState(null, '', '#' + fromUrl.map(encodeURIComponent).join(','));
-        return fromUrl;
-      }
-    } catch(e) {}
+  // Check ?m= query param first — survives iMessage/SMS link sharing unlike #hash
+  const params = new URLSearchParams(location.search);
+  const fromParam = params.get('m');
+  if (fromParam) {
+    const fromUrl = fromParam.split(',').map(s => s.trim()).filter(Boolean);
+    if (fromUrl.length > 0) {
+      localStorage.setItem('wim_members', JSON.stringify(fromUrl));
+      return fromUrl;
+    }
   }
+  // Fall back to localStorage (returning visitor)
   try { return JSON.parse(localStorage.getItem('wim_members') || '[]'); }
   catch(e) { return []; }
 }
 
 function saveMembers() {
   localStorage.setItem('wim_members', JSON.stringify(members));
-  history.replaceState(null, '', '#' + members.map(encodeURIComponent).join(','));
+  const param = members.map(encodeURIComponent).join(',');
+  const newUrl = location.origin + location.pathname + '?m=' + param;
+  history.replaceState(null, '', newUrl);
 }
 
 // ── DATA FETCH ────────────────────────────────────────────────────────────────
@@ -611,7 +603,7 @@ function saveAndClose() {
 
 async function copyShareLink() {
   saveMembers();
-  const link = location.origin + location.pathname + '#' + members.map(encodeURIComponent).join(',');
+  const link = location.origin + location.pathname + '?m=' + members.map(encodeURIComponent).join(',');
   try {
     await navigator.clipboard.writeText(link);
     const btn = document.getElementById('copy-btn');
