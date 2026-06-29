@@ -1603,6 +1603,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(body, 'application/json')
             except Exception as e:
                 self.send_body(str(e).encode(), 'text/plain', 500)
+        elif self.path.startswith('/api/odds/sports'):
+            # Debug: show all tennis sports The Odds API returns for this key
+            try:
+                if not ODDS_API_KEY:
+                    body = json.dumps({'error': 'no key'}).encode()
+                else:
+                    sports = _odds_api_get(f'/sports?apiKey={ODDS_API_KEY}&all=true')
+                    tennis = [s for s in sports if 'tennis' in (s.get('key','') + s.get('title','')).lower()]
+                    body = json.dumps(tennis, indent=2).encode()
+                self.send_body(body, 'application/json')
+            except Exception as e:
+                self.send_body(json.dumps({'error': str(e)}).encode(), 'application/json')
         elif self.path.startswith('/api/odds'):
             try:
                 body = json.dumps(_fetch_dk_odds()).encode()
