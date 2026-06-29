@@ -68,17 +68,19 @@ body {
 .topbar {
   background: var(--green3);
   color: #fff;
-  padding: 0 28px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
+  height: 48px;
   border-bottom: 3px solid var(--purple);
   position: sticky; top: 0; z-index: 20;
+  gap: 8px;
 }
-.topbar-left { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; font-family: sans-serif; opacity: 0.85; }
-.topbar-flag { font-size: 1rem; }
-.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-left { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-family: sans-serif; opacity: 0.85; min-width: 0; }
+.topbar-left span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-flag { font-size: 1rem; flex-shrink: 0; }
+.topbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .live-badge {
   display: flex; align-items: center; gap: 6px;
   background: rgba(201,169,75,0.15); border: 1px solid rgba(201,169,75,0.4);
@@ -312,12 +314,12 @@ body {
 <div class="topbar">
   <div class="topbar-left">
     <span class="topbar-flag">🇬🇧</span>
-    <span>The Championships · All England Club · London</span>
+    <span>Wimbledon 2026 · All England Club</span>
   </div>
   <div class="topbar-right">
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
-    <button onclick="copyInviteLink()" id="invite-btn" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 13px;cursor:pointer;font-size:0.78rem;font-family:sans-serif;">🔗 Share</button>
-    <button onclick="openModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 13px;cursor:pointer;font-size:0.78rem;font-family:sans-serif;">⚙ Group</button>
+    <button onclick="copyInviteLink()" id="invite-btn" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.75rem;font-family:sans-serif;white-space:nowrap;">🔗 Share</button>
+    <button onclick="openModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.75rem;font-family:sans-serif;white-space:nowrap;">⚙ Group</button>
   </div>
 </div>
 
@@ -384,7 +386,8 @@ body {
         <div class="card-sub">ATP + WTA · served.bracket.tennis</div>
       </div>
     </div>
-    <table class="lb-table">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table class="lb-table" style="min-width:480px;">
       <thead>
         <tr>
           <th>#</th>
@@ -399,6 +402,7 @@ body {
         <tr><td colspan="6" style="padding:32px;text-align:center;color:#aaa;font-family:sans-serif">Loading…</td></tr>
       </tbody>
     </table>
+    </div>
   </div>
 
   <!-- LIVE BRACKET VISUALIZATION -->
