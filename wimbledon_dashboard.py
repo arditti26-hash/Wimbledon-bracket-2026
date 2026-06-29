@@ -4,6 +4,15 @@
 import json, re, urllib.request, os, time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None
+
+def _now_et():
+    if ZoneInfo:
+        return datetime.now(ZoneInfo('America/New_York'))
+    return datetime.utcnow() - timedelta(hours=4)
 
 PORT = int(os.environ.get('PORT', 8767))
 
@@ -890,7 +899,7 @@ function render() {
 
   tbody.innerHTML = sorted.map((p, i) => {
     const rank  = i + 1;
-    const c     = COLORS[String(p.color_idx)] || COLORS['0'];
+    const c     = COLORS[String(i % 2)] || COLORS['0'];
     const pct   = p.combined != null ? Math.round((p.combined / maxScore) * 100) : 0;
     const bracketUrl = `https://served.bracket.tennis/tournaments/${SLUG}/combined/brackets/${encodeURIComponent(p.username)}`;
     const atpPill  = p.atp  != null ? `<span class="score-pill pill-atp">${p.atp.toLocaleString()}</span>`  : `<span class="score-pill pill-none">–</span>`;
@@ -1469,7 +1478,7 @@ def _fetch_ai_summary():
 
     results_text = _build_results_text()
     news_text    = _fetch_bbc_wimbledon_news() or _fetch_espn_wimbledon_news()
-    today        = datetime.now().strftime('%B %d, %Y')
+    today        = _now_et().strftime('%B %d, %Y')
 
     prompt = (
         f"You are a concise tennis writer covering Wimbledon {today}. "
@@ -1500,7 +1509,7 @@ def _fetch_ai_summary():
         with urllib.request.urlopen(req, timeout=20) as r:
             data = json.loads(r.read().decode())
         summary = data['content'][0]['text'].strip()
-        result  = {'summary': summary, 'updated': datetime.now().strftime('%b %d · %I:%M %p'), 'error': None}
+        result  = {'summary': summary, 'updated': _now_et().strftime('%b %d · %I:%M %p ET'), 'error': None}
     except Exception as e:
         result = {'summary': '', 'updated': '', 'error': str(e)}
 
@@ -1510,6 +1519,18 @@ def _fetch_ai_summary():
 
 
 def _fetch_dk_odds():
+    # Try to load from wimbledon_odds.json (updated daily by scheduled task)
+    json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wimbledon_odds.json')
+    try:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        atp = [(item['odds'], item['player']) for item in data.get('mens', data.get('atp', []))[:10]]
+        wta = [(item['odds'], item['player']) for item in data.get('womens', data.get('wta', []))[:10]]
+        if atp or wta:
+            return {'atp': atp, 'wta': wta, 'error': None}
+    except Exception:
+        pass
+    # Fall back to hardcoded odds
     return {'atp': _STATIC_ODDS['atp'], 'wta': _STATIC_ODDS['wta'], 'error': None}
 
 
@@ -1547,7 +1568,7 @@ def get_data(members=None):
     if members is None:
         members = MEMBERS
     if not members:
-        return {'players': [], 'updated': datetime.now().strftime('%b %d, %Y · %I:%M:%S %p')}
+        return {'players': [], 'updated': _now_et().strftime('%b %d, %Y · %I:%M:%S %p ET')}
 
     # Shared draw + results for ATP and WTA (one fetch per tour, reused for all members)
     atp_draw, atp_results, _ = _get_tournament_data('atp', members)
@@ -1605,7 +1626,7 @@ def get_data(members=None):
 
     return {
         'players': players,
-        'updated': datetime.now().strftime('%b %d, %Y · %I:%M:%S %p'),
+        'updated': _now_et().strftime('%b %d, %Y · %I:%M:%S %p ET'),
     }
 
 
