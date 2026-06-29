@@ -303,8 +303,6 @@ body {
     /* ── RESPONSIVE ── */
 @media (max-width: 560px) {
   header { height: auto; padding: 12px 14px; flex-wrap: wrap; gap: 10px; }
-  .lb-table th:nth-child(3), .lb-table td:nth-child(3),
-  .lb-table th:nth-child(4), .lb-table td:nth-child(4) { display: none; }
 }
 </style>
 </head>
@@ -387,7 +385,7 @@ body {
       </div>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <table class="lb-table" style="min-width:480px;">
+    <table class="lb-table" style="min-width:560px;">
       <thead>
         <tr>
           <th>#</th>
