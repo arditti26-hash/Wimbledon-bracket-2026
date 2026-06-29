@@ -1417,47 +1417,49 @@ _summary_cache    = {}
 _summary_cache_ts = 0
 
 
-def _fetch_espn_wimbledon_news():
-    """Grab text from ESPN Wimbledon scoreboard/news page for context."""
+def _fetch_news_text(url):
     try:
-        url = 'https://www.espn.com/tennis/story/_/id/49072110/wimbledon-championship-odds-tennis-2026'
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as r:
-            html = r.read().decode('utf-8', errors='replace')
-        # Strip tags, collapse whitespace, take first 2000 chars
-        text = re.sub(r'<[^>]+>', ' ', html)
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text[:2000]
-    except Exception:
-        return ''
-
-
-def _fetch_bbc_wimbledon_news():
-    """Grab BBC Sport Wimbledon headlines for context."""
-    try:
-        url = 'https://www.bbc.com/sport/tennis/wimbledon'
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=10) as r:
             html = r.read().decode('utf-8', errors='replace')
         text = re.sub(r'<[^>]+>', ' ', html)
         text = re.sub(r'\s+', ' ', text).strip()
-        return text[:2000]
+        return text[:3000]
     except Exception:
         return ''
+
+
+def _fetch_wimbledon_news():
+    """Try multiple sources for Wimbledon headlines."""
+    for url in [
+        'https://www.bbc.com/sport/tennis/wimbledon',
+        'https://www.bbc.co.uk/sport/tennis',
+        'https://www.espn.com/tennis/',
+    ]:
+        text = _fetch_news_text(url)
+        if text:
+            return text
+    return ''
 
 
 def _build_results_text():
-    """Summarise today's completed matches from the bracket data."""
-    lines = []
-    for tour, label in [('atp', "Men's"), ('wta', "Women's")]:
+    """Build completed match results from bracket data, split by tour."""
+    atp_lines, wta_lines = [], []
+    round_names = {1:'R1',2:'R2',3:'R3',4:'R4',5:'QF',6:'SF',7:'Final'}
+    for tour, lines in [('atp', atp_lines), ('wta', wta_lines)]:
         try:
             _, results, _ = _get_tournament_data(tour, MEMBERS)
-            for (rnd, pos), r in results.items():
-                round_name = {1:'R1',2:'R2',3:'R3',4:'R4',5:'QF',6:'SF',7:'Final'}.get(rnd, f'R{rnd}')
-                lines.append(f"{label} {round_name}: {r['winner']} def. {r.get('loser','?')}")
+            for (rnd, pos), r in sorted(results.items()):
+                rname = round_names.get(rnd, f'R{rnd}')
+                winner = r.get('winner', '?')
+                loser  = r.get('loser', '?')
+                if winner and loser:
+                    lines.append(f"{rname}: {winner} def. {loser}")
         except Exception:
             pass
-    return '\n'.join(lines[:30]) if lines else 'No completed matches yet.'
+    atp_text = "Men's results:\n" + '\n'.join(atp_lines[:20]) if atp_lines else "Men's results: none yet"
+    wta_text = "Women's results:\n" + '\n'.join(wta_lines[:20]) if wta_lines else "Women's results: none yet"
+    return wta_text + '\n\n' + atp_text
 
 
 def _fetch_ai_summary():
@@ -1477,17 +1479,19 @@ def _fetch_ai_summary():
         return result
 
     results_text = _build_results_text()
-    news_text    = _fetch_bbc_wimbledon_news() or _fetch_espn_wimbledon_news()
+    news_text    = _fetch_wimbledon_news()
     today        = _now_et().strftime('%B %d, %Y')
 
     prompt = (
-        f"You are a concise tennis writer covering Wimbledon {today}. "
-        f"Write a daily recap in this exact format — no extra text, no intro:\n"
-        f"WOMEN'S: [2 punchy sentences on the Women's draw]\n"
-        f"MEN'S: [2 punchy sentences on the Men's draw]\n"
-        f"Focus on the most notable results, upsets, and storylines. Keep it conversational.\n\n"
-        f"Match results today:\n{results_text}\n\n"
-        f"News context:\n{news_text[:1000]}"
+        f"You are a witty, engaging tennis writer covering Wimbledon {today}. "
+        f"Write a punchy daily recap using ONLY the match results and news context provided below — never invent scores, match details, or storylines not present in the data. "
+        f"You can be colorful and fun with your language, but every fact must come directly from the results or news provided. "
+        f"Use this exact format — no intro, no extra text:\n"
+        f"WOMEN'S: [2 engaging sentences based only on Women's results and news below]\n"
+        f"MEN'S: [2 engaging sentences based only on Men's results and news below]\n"
+        f"If there are no results for a draw yet, say so in one fun sentence.\n\n"
+        f"Match results:\n{results_text}\n\n"
+        f"News context (only use facts explicitly stated here):\n{news_text[:1500]}"
     )
 
     try:
