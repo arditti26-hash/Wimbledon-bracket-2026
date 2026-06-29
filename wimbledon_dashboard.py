@@ -3,7 +3,7 @@
 
 import json, re, urllib.request, os, time
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from datetime import datetime
+from datetime import datetime, timedelta
 
 PORT = int(os.environ.get('PORT', 8767))
 
@@ -518,12 +518,7 @@ body {
     }
 
     function formatSetScore(score) {
-      if (!score || !Array.isArray(score) || !score.length) return null;
-      // [[p1,p2], [p1,p2], ...] or flat numbers
-      return score.map(function(s) {
-        if (Array.isArray(s) && s.length >= 2) return s[0] + '-' + s[1];
-        return String(s);
-      }).join('  ');
+      return (typeof score === 'string' && score.length) ? score : null;
     }
 
     function renderBracket(data, container, labelsEl) {
@@ -570,7 +565,7 @@ body {
         col.style.cssText = 'display:flex;flex-direction:column;width:' + COL_W + 'px;flex-shrink:0;border-right:1px solid #e8e4d8;';
 
         rMatches.forEach(function(m) {
-          var isLive = (m.p1 && liveSet[m.p1]) || (m.p2 && liveSet[m.p2]);
+          var isLive = !!m.is_live;
           var isComplete = !!m.winner;
 
           var slot = document.createElement('div');
@@ -626,15 +621,7 @@ body {
             card.appendChild(row);
           });
 
-          // Score row — show final set scores (from turbo-stream) or ESPN live score
-          var scoreStr = null;
-          if (isComplete) {
-            scoreStr = formatSetScore(m.score);
-            // fallback: try ESPN scores for either player
-            if (!scoreStr) scoreStr = (m.p1 && espnScores[m.p1]) || (m.p2 && espnScores[m.p2]) || null;
-          } else if (isLive) {
-            scoreStr = (m.p1 && espnScores[m.p1]) || (m.p2 && espnScores[m.p2]) || null;
-          }
+          var scoreStr = (isComplete || isLive) ? formatSetScore(m.score) : null;
 
           if (scoreStr) {
             var scoreRow = document.createElement('div');
@@ -718,6 +705,14 @@ body {
       var el = document.getElementById('odds-body');
       var list = (data[_oddsTour] || []);
 
+      if (data.error === 'no_key') {
+        el.innerHTML = '<div style="padding:20px 24px;font-family:sans-serif;font-size:0.82rem;color:#555;line-height:1.6;">'
+          + '<strong style="color:#00512e;">Set up live odds in 2 steps:</strong><br>'
+          + '1. Get a free API key at <strong>the-odds-api.com</strong> (500 free requests/month)<br>'
+          + '2. Add <code style="background:#f0f0f0;padding:1px 5px;border-radius:3px;">ODDS_API_KEY=your_key</code> as an environment variable on Render'
+          + '</div>';
+        return;
+      }
       if (data.error && !list.length) {
         el.innerHTML = '<div style="text-align:center;color:#aaa;font-size:0.82rem;font-family:sans-serif;padding:20px 16px;">'
           + 'Odds unavailable — ' + data.error + '</div>';
@@ -729,7 +724,7 @@ body {
       }
 
       var rows = list.map(function(item, i) {
-        var name = item[0], odds = item[1];
+        var odds = item[0], name = item[1];
         var pos = odds && odds[0] === '+';
         var fav = odds && odds[0] === '-';
         var oddsColor = pos ? '#00512e' : fav ? '#c0392b' : '#333';
@@ -1012,6 +1007,52 @@ def _ts_obj(flat, obj):
     return result
 
 
+def _parse_match_scores(scores_str, p1_name, p2_name, winner_name, is_live):
+    """
+    Parse served.bracket.tennis scores string into a display string.
+    Format: '[[p1_g, p1_tb, p1_g2, p1_tb2, ...], [p2_g, p2_tb, ...]]'
+    Each pair is (games_won, tiebreak_score) per set.
+    Returns e.g. '6-3  6-4  7-6(3)' or '*4-6  6-3  *6-6' when live.
+    """
+    if not scores_str:
+        return None
+    try:
+        arr = json.loads(scores_str)
+        if not isinstance(arr, list) or len(arr) < 2:
+            return None
+        p1_arr, p2_arr = arr[0], arr[1]
+        n = min(len(p1_arr), len(p2_arr)) // 2
+        if n == 0:
+            return None
+
+        # Show from winner's perspective; if no winner yet show from p1's view
+        flip = (winner_name and winner_name == p2_name)
+
+        parts = []
+        for i in range(n):
+            idx  = i * 2
+            g1   = p1_arr[idx];   tb1 = p1_arr[idx+1] if idx+1 < len(p1_arr) else None
+            g2   = p2_arr[idx];   tb2 = p2_arr[idx+1] if idx+1 < len(p2_arr) else None
+            if g1 is None or g2 is None:
+                continue
+            if g1 == 0 and g2 == 0:
+                continue  # skip empty/abandoned set entries
+            wg, lg, wtb, ltb = (g2, g1, tb2, tb1) if flip else (g1, g2, tb1, tb2)
+
+            last_set = (i == n - 1)
+            if is_live and last_set:
+                # In-progress set: just show games, no tiebreak detail
+                parts.append(f'*{wg}-{lg}')
+            elif ltb is not None:
+                parts.append(f'{wg}-{lg}({int(ltb)})')
+            else:
+                parts.append(f'{wg}-{lg}')
+
+        return '  '.join(parts) if parts else None
+    except Exception:
+        return None
+
+
 def _extract_bracket_data(flat):
     """
     Decode the flat turbo-stream array to produce:
@@ -1073,26 +1114,29 @@ def _extract_bracket_data(flat):
                 return (c.get('code') or c.get('abbreviation') or '').upper()
             return (c or '').upper()
 
-        # Extract set scores — may be [[p1_games, p2_games], ...] or None
-        score_raw = m.get('score') or m.get('sets') or m.get('result')
-        score = score_raw if isinstance(score_raw, list) else None
+        p1_name     = p1.get('name') or None
+        p2_name     = p2.get('name') or None
+        winner_name = winner.get('name') or None
+        has_started = bool(m.get('has_started'))
+        is_live     = has_started and not winner_name and (p1_name or p2_name)
 
-        # Extract match status string (e.g. 'completed', 'in_progress', 'upcoming')
-        status_raw = m.get('status') or m.get('matchStatus') or m.get('state')
-        status = status_raw if isinstance(status_raw, str) else None
+        # scores field: '[[p1_g,p1_tb,p1_g2,p1_tb2,...],[p2_g,p2_tb,...]]'
+        score = _parse_match_scores(
+            m.get('scores'), p1_name, p2_name, winner_name, bool(is_live)
+        )
 
         all_matches.append({
             'round': rnd,
             'pos': pos,
-            'p1': p1.get('name') or None,
-            'p2': p2.get('name') or None,
+            'p1': p1_name,
+            'p2': p2_name,
             'p1_rank': p1.get('ranking') or 999,
             'p2_rank': p2.get('ranking') or 999,
             'p1_country': _ctry(p1),
             'p2_country': _ctry(p2),
-            'winner': winner.get('name') or None,
+            'winner': winner_name,
             'score': score,
-            'status': status,
+            'is_live': bool(is_live),
         })
 
     return r1_draw, match_results, all_matches
@@ -1191,95 +1235,129 @@ def _calculate_max_score(picks, r1_draw, match_results):
 _espn_live_cache    = {}   # tour -> {'live': set_of_names, 'scores': {name: score_str}}
 _espn_live_cache_ts = {}
 
+def _espn_parse_events(data, live, scores):
+    """
+    Parse ESPN scoreboard JSON, populating:
+      live   — set of full names currently playing
+      scores — {full_name: score_str, last_name: score_str} for completed/live matches
+    """
+    for event in data.get('events', []):
+        for comp in event.get('competitions', []):
+            stype     = (comp.get('status') or {}).get('type') or {}
+            state     = stype.get('name', '')
+            completed = stype.get('completed', False)
+
+            competitors = comp.get('competitors', [])
+
+            # Collect names + per-player linescores
+            players = []
+            for c in competitors:
+                name = (c.get('athlete') or {}).get('fullName', '') or \
+                       (c.get('athlete') or {}).get('displayName', '')
+                ls   = c.get('linescores') or []
+                players.append({'name': name, 'ls': ls})
+
+            names = [p['name'] for p in players if p['name']]
+
+            if state == 'STATUS_IN_PROGRESS' and not completed:
+                for name in names:
+                    live.add(name)
+
+            # --- Build set-score string ---
+            score_str = None
+
+            # Format 1: competition-level linescores with displayValue ("6-3")
+            comp_ls = comp.get('linescores') or []
+            if comp_ls:
+                parts = [s.get('displayValue', '') for s in comp_ls if s.get('displayValue')]
+                if parts:
+                    score_str = '  '.join(parts)
+
+            # Format 2: per-competitor linescores (zip games per set)
+            if not score_str and len(players) == 2:
+                ls0 = [l.get('value') for l in players[0]['ls'] if l.get('value') is not None]
+                ls1 = [l.get('value') for l in players[1]['ls'] if l.get('value') is not None]
+                if ls0 and ls1 and len(ls0) == len(ls1):
+                    score_str = '  '.join(f'{int(a)}-{int(b)}' for a, b in zip(ls0, ls1))
+
+            if score_str and names:
+                for name in names:
+                    scores[name] = score_str
+                    last = name.strip().split()[-1] if name.strip() else ''
+                    if last:
+                        scores[last] = score_str
+
+
 def _fetch_espn_live(tour):
     """
-    Returns {'live': {player_name, ...}, 'scores': {player_name: score_str}}
-    by polling the ESPN ATP/WTA scoreboard.  Cached 45 seconds.
+    Returns {'live': {player_name, ...}, 'scores': {name: score_str}}
+    Fetches today + past 5 days so recently-completed match scores are included.
+    Cached 45 seconds.
     """
     now = time.time()
     if tour in _espn_live_cache and now - _espn_live_cache_ts.get(tour, 0) < 45:
         return _espn_live_cache[tour]
 
-    slug = 'atp' if tour == 'atp' else 'wta'
-    url  = f'https://site.api.espn.com/apis/site/v2/sports/tennis/{slug}/scoreboard'
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=8) as r:
-            data = json.loads(r.read().decode())
+    slug  = 'atp' if tour == 'atp' else 'wta'
+    live  = set()
+    scores = {}
 
-        live   = set()
-        scores = {}
+    today = datetime.now()
+    for delta in range(6):  # today + 5 previous days
+        date_str = (today - timedelta(days=delta)).strftime('%Y%m%d')
+        # Try multiple ESPN endpoints — Grand Slams may not appear under atp/wta slug
+        endpoints = [
+            f'https://site.api.espn.com/apis/site/v2/sports/tennis/{slug}/scoreboard?dates={date_str}',
+            f'https://site.api.espn.com/apis/site/v2/sports/tennis/scoreboard?dates={date_str}',
+        ]
+        for url in endpoints:
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    data = json.loads(r.read().decode())
+                _espn_parse_events(data, live, scores)
+            except Exception:
+                continue
 
-        for event in data.get('events', []):
-            for comp in event.get('competitions', []):
-                stype = (comp.get('status') or {}).get('type') or {}
-                state = stype.get('name', '')
-                completed = stype.get('completed', False)
-
-                competitors = comp.get('competitors', [])
-                names = []
-                for c in competitors:
-                    name = (c.get('athlete') or {}).get('fullName', '')
-                    if name:
-                        names.append(name)
-
-                if state == 'STATUS_IN_PROGRESS' and not completed:
-                    for name in names:
-                        live.add(name)
-
-                # Build score string from linescores or top-level score
-                sets_data = comp.get('linescores') or []
-                if sets_data and names:
-                    set_strs = []
-                    for s in sets_data:
-                        vals = s.get('displayValue', '')
-                        if vals:
-                            set_strs.append(vals)
-                    if set_strs:
-                        score_str = '  '.join(set_strs)
-                        for name in names:
-                            scores[name] = score_str
-
-        result = {'live': live, 'scores': scores}
-        _espn_live_cache[tour]    = result
-        _espn_live_cache_ts[tour] = now
-        return result
-    except Exception:
-        return {'live': set(), 'scores': {}}
+    result = {'live': live, 'scores': scores}
+    _espn_live_cache[tour]    = result
+    _espn_live_cache_ts[tour] = now
+    return result
 
 
 # ── DraftKings odds ───────────────────────────────────────────────────────────
 
 _dk_cache    = {}
 _dk_cache_ts = {}
-_DK_HEADERS  = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    'Accept': 'application/json',
-    'Referer': 'https://sportsbook.draftkings.com/',
+
+# Free API key from https://the-odds-api.com — set ODDS_API_KEY env var on Render
+ODDS_API_KEY = os.environ.get('ODDS_API_KEY', '')
+
+# Sport keys to try in order (The Odds API slugs for Wimbledon)
+_ODDS_SPORT_KEYS = {
+    'atp': ['tennis_atp_wimbledon', 'tennis_wimbledon_men_winner', 'tennis_atp_french_open'],
+    'wta': ['tennis_wta_wimbledon', 'tennis_wimbledon_women_winner', 'tennis_wta_french_open'],
 }
-_DK_BASE = 'https://sportsbook-us-nj.draftkings.com/sites/US-NJ-SB/api/v5'
+# Preferred bookmakers in priority order
+_PREFERRED_BOOKS = ['draftkings', 'fanduel', 'betmgm', 'williamhill_us', 'bovada']
 
 
-def _dk_get(path):
-    req = urllib.request.Request(_DK_BASE + path, headers=_DK_HEADERS)
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return json.loads(r.read().decode())
+def _implied_prob(american):
+    """Convert American odds integer to implied probability (for sorting)."""
+    if american < 0:
+        return abs(american) / (abs(american) + 100)
+    return 100 / (american + 100)
 
 
-def _dk_walk_offers(data):
-    """Yield (offer_label, outcomes_list) from a DraftKings v5 response."""
-    eg = data.get('eventGroup') or {}
-    for cat in eg.get('offerCategories') or []:
-        for desc in cat.get('offerSubcategoryDescriptors') or []:
-            subcat = desc.get('offerSubcategory') or {}
-            for offer in subcat.get('offers') or []:
-                yield offer.get('label', ''), offer.get('outcomes') or []
+def _fmt_american(price):
+    return ('+' + str(price)) if price > 0 else str(price)
 
 
 def _fetch_dk_odds():
     """
-    Fetch Wimbledon outright-winner odds from DraftKings.
-    Returns {'atp': [(name, american_odds), ...], 'wta': [...], 'error': str|None}
+    Fetch Wimbledon outright-winner odds via The Odds API (the-odds-api.com).
+    Uses DraftKings odds where available, falls back to best available bookmaker.
+    Returns {'atp': [(name, odds_str), ...], 'wta': [...], 'error': str|None}
     Cached 5 minutes.
     """
     now = time.time()
@@ -1287,40 +1365,54 @@ def _fetch_dk_odds():
         return _dk_cache['dk']
 
     result = {'atp': [], 'wta': [], 'error': None}
+
+    if not ODDS_API_KEY:
+        result['error'] = 'no_key'
+        _dk_cache['dk'] = result
+        _dk_cache_ts['dk'] = now
+        return result
+
+    def fetch_tour(sport_keys):
+        for sport_key in sport_keys:
+            try:
+                url = (f'https://api.the-odds-api.com/v4/sports/{sport_key}/odds'
+                       f'?apiKey={ODDS_API_KEY}&regions=us&markets=outrights&oddsFormat=american')
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=10) as r:
+                    data = json.loads(r.read().decode())
+
+                # Collect best available odds per player across preferred bookmakers
+                odds_map = {}
+                for event in data:
+                    bks = event.get('bookmakers') or []
+                    # Try preferred bookmakers in order; take first hit
+                    bk = next((b for b in bks if b.get('key') in _PREFERRED_BOOKS), None)
+                    if not bk:
+                        bk = bks[0] if bks else None
+                    if not bk:
+                        continue
+                    for mkt in bk.get('markets') or []:
+                        if mkt.get('key') == 'outrights':
+                            for outcome in mkt.get('outcomes') or []:
+                                name  = outcome.get('name', '')
+                                price = outcome.get('price', 0)
+                                if name and price:
+                                    odds_map[name] = price
+
+                if odds_map:
+                    # Sort favorites first (highest implied probability)
+                    ranked = sorted(odds_map.items(),
+                                    key=lambda x: -_implied_prob(x[1]))
+                    return [(_fmt_american(p), name) for name, p in ranked[:10]]
+            except Exception:
+                continue
+        return []
+
     try:
-        # Step 1: list subcategories for tennis futures (eventgroup 9, category 587)
-        top = _dk_get('/eventgroups/9/categories/587/subcategories')
-        eg  = top.get('eventGroup') or {}
-
-        wimbledon_ids = {'atp': [], 'wta': []}
-        for cat in eg.get('offerCategories') or []:
-            for desc in cat.get('offerSubcategoryDescriptors') or []:
-                name  = (desc.get('name') or '').lower()
-                sub_id = desc.get('subcategoryId')
-                if not sub_id or 'wimbledon' not in name:
-                    continue
-                if "women" in name or "wta" in name or "ladies" in name:
-                    wimbledon_ids['wta'].append(sub_id)
-                else:
-                    wimbledon_ids['atp'].append(sub_id)
-
-        # Step 2: fetch each matched subcategory and pull top-10 outcomes
-        for tour, ids in wimbledon_ids.items():
-            for sub_id in ids[:2]:
-                try:
-                    sub = _dk_get(f'/eventgroups/9/categories/587/subcategories/{sub_id}')
-                    for label, outcomes in _dk_walk_offers(sub):
-                        if outcomes and not result[tour]:
-                            result[tour] = [
-                                (o.get('label', ''), o.get('oddsAmerican', ''))
-                                for o in outcomes[:10]
-                                if o.get('label') and o.get('oddsAmerican')
-                            ]
-                except Exception:
-                    continue
-
+        result['atp'] = fetch_tour(_ODDS_SPORT_KEYS['atp'])
+        result['wta'] = fetch_tour(_ODDS_SPORT_KEYS['wta'])
         if not result['atp'] and not result['wta']:
-            result['error'] = 'No Wimbledon markets found on DraftKings'
+            result['error'] = 'No Wimbledon markets found yet — check back closer to the tournament'
     except Exception as e:
         result['error'] = str(e)
 
