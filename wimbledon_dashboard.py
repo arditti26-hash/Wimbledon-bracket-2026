@@ -457,10 +457,13 @@ let members = [];
 
 // ── MEMBER STORAGE ────────────────────────────────────────────────────────────
 function loadMembers() {
-  const hash = location.hash.slice(1);
-  if (hash) {
+  const raw = location.hash.slice(1);
+  if (raw) {
     try {
-      const fromUrl = JSON.parse(atob(hash));
+      // decode URI encoding, pad base64 if = signs were stripped
+      let b64 = decodeURIComponent(raw);
+      b64 = b64 + '==='.slice(0, (4 - b64.length % 4) % 4);
+      const fromUrl = JSON.parse(atob(b64));
       if (Array.isArray(fromUrl) && fromUrl.length > 0) {
         localStorage.setItem('wim_members', JSON.stringify(fromUrl));
         return fromUrl;
@@ -473,7 +476,8 @@ function loadMembers() {
 
 function saveMembers() {
   localStorage.setItem('wim_members', JSON.stringify(members));
-  history.replaceState(null, '', '#' + btoa(JSON.stringify(members)));
+  const encoded = encodeURIComponent(btoa(JSON.stringify(members)));
+  history.replaceState(null, '', '#' + encoded);
 }
 
 // ── DATA FETCH ────────────────────────────────────────────────────────────────
@@ -600,7 +604,7 @@ function saveAndClose() {
 
 async function copyShareLink() {
   saveMembers();
-  const link = location.origin + location.pathname + '#' + btoa(JSON.stringify(members));
+  const link = location.origin + location.pathname + '#' + encodeURIComponent(btoa(JSON.stringify(members)));
   try {
     await navigator.clipboard.writeText(link);
     const btn = document.getElementById('copy-btn');
