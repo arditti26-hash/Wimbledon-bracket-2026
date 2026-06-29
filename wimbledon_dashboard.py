@@ -15,12 +15,12 @@ MEMBERS = [
 ]
 
 COLORS = {
-    0: {'primary': '#10b981', 'bg': 'rgba(16,185,129,0.12)', 'border': 'rgba(16,185,129,0.25)'},
-    1: {'primary': '#3b82f6', 'bg': 'rgba(59,130,246,0.12)',  'border': 'rgba(59,130,246,0.25)'},
-    2: {'primary': '#f59e0b', 'bg': 'rgba(245,158,11,0.12)',  'border': 'rgba(245,158,11,0.25)'},
-    3: {'primary': '#8b5cf6', 'bg': 'rgba(139,92,246,0.12)',  'border': 'rgba(139,92,246,0.25)'},
-    4: {'primary': '#ec4899', 'bg': 'rgba(236,72,153,0.12)',  'border': 'rgba(236,72,153,0.25)'},
-    5: {'primary': '#14b8a6', 'bg': 'rgba(20,184,166,0.12)',  'border': 'rgba(20,184,166,0.25)'},
+    0: {'primary': '#00512e', 'bg': 'rgba(0,81,46,0.10)',    'border': 'rgba(0,81,46,0.22)'},
+    1: {'primary': '#b8973a', 'bg': 'rgba(184,151,58,0.12)', 'border': 'rgba(184,151,58,0.28)'},
+    2: {'primary': '#00512e', 'bg': 'rgba(0,81,46,0.10)',    'border': 'rgba(0,81,46,0.22)'},
+    3: {'primary': '#b8973a', 'bg': 'rgba(184,151,58,0.12)', 'border': 'rgba(184,151,58,0.28)'},
+    4: {'primary': '#00512e', 'bg': 'rgba(0,81,46,0.10)',    'border': 'rgba(0,81,46,0.22)'},
+    5: {'primary': '#b8973a', 'bg': 'rgba(184,151,58,0.12)', 'border': 'rgba(184,151,58,0.28)'},
 }
 
 TOURNAMENT_SLUG = 'wimbledon-2026'
