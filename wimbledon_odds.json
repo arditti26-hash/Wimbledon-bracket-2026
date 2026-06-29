@@ -1,0 +1,28 @@
+{
+  "updated": "2026-06-29T00:00:00Z",
+  "source_note": "Odds from BetMGM via VegasInsider (updated 2026-06-28) and Yahoo Sports/College Football Network. Note: Some sources indicate Carlos Alcaraz may be injured/absent; he remains listed on VegasInsider as of 6/28/26.",
+  "mens": [
+    { "rank": 1, "player": "Jannik Sinner", "nationality": "Italy", "odds_american": "-175", "odds_decimal": 1.57 },
+    { "rank": 2, "player": "Carlos Alcaraz", "nationality": "Spain", "odds_american": "+200", "odds_decimal": 3.0 },
+    { "rank": 3, "player": "Novak Djokovic", "nationality": "Serbia", "odds_american": "+700", "odds_decimal": 8.0 },
+    { "rank": 4, "player": "Alexander Zverev", "nationality": "Germany", "odds_american": "+1400", "odds_decimal": 15.0 },
+    { "rank": 5, "player": "Jack Draper", "nationality": "Great Britain", "odds_american": "+1400", "odds_decimal": 15.0 },
+    { "rank": 6, "player": "Ben Shelton", "nationality": "United States", "odds_american": "+1600", "odds_decimal": 17.0 },
+    { "rank": 7, "player": "Daniil Medvedev", "nationality": "Russia", "odds_american": "+1600", "odds_decimal": 17.0 },
+    { "rank": 8, "player": "Joao Fonseca", "nationality": "Brazil", "odds_american": "+1600", "odds_decimal": 17.0 },
+    { "rank": 9, "player": "Taylor Fritz", "nationality": "United States", "odds_american": "+2200", "odds_decimal": 23.0 },
+    { "rank": 10, "player": "Jakub Mensik", "nationality": "Czech Republic", "odds_american": "+2500", "odds_decimal": 26.0 }
+  ],
+  "womens": [
+    { "rank": 1, "player": "Aryna Sabalenka", "nationality": "Belarus", "odds_american": "+200", "odds_decimal": 3.0 },
+    { "rank": 2, "player": "Iga Swiatek", "nationality": "Poland", "odds_american": "+550", "odds_decimal": 6.5 },
+    { "rank": 3, "player": "Coco Gauff", "nationality": "United States", "odds_american": "+600", "odds_decimal": 7.0 },
+    { "rank": 4, "player": "Elena Rybakina", "nationality": "Kazakhstan", "odds_american": "+600", "odds_decimal": 7.0 },
+    { "rank": 5, "player": "Mirra Andreeva", "nationality": "Russia", "odds_american": "+700", "odds_decimal": 8.0 },
+    { "rank": 6, "player": "Amanda Anisimova", "nationality": "United States", "odds_american": "+900", "odds_decimal": 10.0 },
+    { "rank": 7, "player": "Naomi Osaka", "nationality": "Japan", "odds_american": "+1200", "odds_decimal": 13.0 },
+    { "rank": 8, "player": "Victoria Mboko", "nationality": "Canada", "odds_american": "+1200", "odds_decimal": 13.0 },
+    { "rank": 9, "player": "Jessica Pegula", "nationality": "United States", "odds_american": "+1600", "odds_decimal": 17.0 },
+    { "rank": 10, "player": "Madison Keys", "nationality": "United States", "odds_american": "+2000", "odds_decimal": 21.0 }
+  ]
+}
