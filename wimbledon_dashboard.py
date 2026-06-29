@@ -1333,13 +1333,12 @@ _dk_cache_ts = {}
 # Free API key from https://the-odds-api.com — set ODDS_API_KEY env var on Render
 ODDS_API_KEY = os.environ.get('ODDS_API_KEY', '')
 
-# Sport keys to try in order (The Odds API slugs for Wimbledon)
-_ODDS_SPORT_KEYS = {
-    'atp': ['tennis_atp_wimbledon', 'tennis_wimbledon_men_winner', 'tennis_atp_french_open'],
-    'wta': ['tennis_wta_wimbledon', 'tennis_wimbledon_women_winner', 'tennis_wta_french_open'],
-}
 # Preferred bookmakers in priority order
 _PREFERRED_BOOKS = ['draftkings', 'fanduel', 'betmgm', 'williamhill_us', 'bovada']
+
+# Cache for discovered sport keys (refreshed hourly)
+_sport_keys_cache    = {}
+_sport_keys_cache_ts = 0
 
 
 def _implied_prob(american):
@@ -1353,11 +1352,64 @@ def _fmt_american(price):
     return ('+' + str(price)) if price > 0 else str(price)
 
 
+def _odds_api_get(path):
+    url = f'https://api.the-odds-api.com/v4{path}'
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read().decode())
+
+
+def _discover_wimbledon_keys():
+    global _sport_keys_cache, _sport_keys_cache_ts
+    now = time.time()
+    if _sport_keys_cache and now - _sport_keys_cache_ts < 3600:
+        return _sport_keys_cache
+    try:
+        sports = _odds_api_get(f'/sports?apiKey={ODDS_API_KEY}&all=true')
+        atp_keys, wta_keys = [], []
+        for s in sports:
+            key   = (s.get('key') or '').lower()
+            title = (s.get('title') or '').lower()
+            if 'wimbledon' not in key and 'wimbledon' not in title:
+                continue
+            if any(x in key or x in title for x in ['wta', 'women', 'ladies']):
+                wta_keys.append(s['key'])
+            else:
+                atp_keys.append(s['key'])
+        _sport_keys_cache = {'atp': atp_keys, 'wta': wta_keys}
+        _sport_keys_cache_ts = now
+    except Exception:
+        _sport_keys_cache = {'atp': [], 'wta': []}
+        _sport_keys_cache_ts = now
+    return _sport_keys_cache
+
+
+def _extract_odds_from_events(data):
+    odds_map = {}
+    for event in data:
+        bks = event.get('bookmakers') or []
+        bk  = next((b for b in bks if b.get('key') in _PREFERRED_BOOKS), None) \
+              or (bks[0] if bks else None)
+        if not bk:
+            continue
+        for mkt in bk.get('markets') or []:
+            if mkt.get('key') == 'outrights':
+                for outcome in mkt.get('outcomes') or []:
+                    name  = outcome.get('name', '')
+                    price = outcome.get('price', 0)
+                    if name and price and name not in odds_map:
+                        odds_map[name] = price
+    if not odds_map:
+        return []
+    ranked = sorted(odds_map.items(), key=lambda x: -_implied_prob(x[1]))
+    return [(_fmt_american(p), name) for name, p in ranked[:10]]
+
+
 def _fetch_dk_odds():
     """
     Fetch Wimbledon outright-winner odds via The Odds API (the-odds-api.com).
-    Uses DraftKings odds where available, falls back to best available bookmaker.
-    Returns {'atp': [(name, odds_str), ...], 'wta': [...], 'error': str|None}
+    Dynamically discovers Wimbledon sport keys, then fetches odds.
+    Returns {'atp': [(odds_str, name), ...], 'wta': [...], 'error': str|None}
     Cached 5 minutes.
     """
     now = time.time()
@@ -1375,42 +1427,21 @@ def _fetch_dk_odds():
     def fetch_tour(sport_keys):
         for sport_key in sport_keys:
             try:
-                url = (f'https://api.the-odds-api.com/v4/sports/{sport_key}/odds'
-                       f'?apiKey={ODDS_API_KEY}&regions=us&markets=outrights&oddsFormat=american')
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=10) as r:
-                    data = json.loads(r.read().decode())
-
-                # Collect best available odds per player across preferred bookmakers
-                odds_map = {}
-                for event in data:
-                    bks = event.get('bookmakers') or []
-                    # Try preferred bookmakers in order; take first hit
-                    bk = next((b for b in bks if b.get('key') in _PREFERRED_BOOKS), None)
-                    if not bk:
-                        bk = bks[0] if bks else None
-                    if not bk:
-                        continue
-                    for mkt in bk.get('markets') or []:
-                        if mkt.get('key') == 'outrights':
-                            for outcome in mkt.get('outcomes') or []:
-                                name  = outcome.get('name', '')
-                                price = outcome.get('price', 0)
-                                if name and price:
-                                    odds_map[name] = price
-
-                if odds_map:
-                    # Sort favorites first (highest implied probability)
-                    ranked = sorted(odds_map.items(),
-                                    key=lambda x: -_implied_prob(x[1]))
-                    return [(_fmt_american(p), name) for name, p in ranked[:10]]
+                data = _odds_api_get(
+                    f'/sports/{sport_key}/odds'
+                    f'?apiKey={ODDS_API_KEY}&regions=us&markets=outrights&oddsFormat=american'
+                )
+                odds = _extract_odds_from_events(data)
+                if odds:
+                    return odds
             except Exception:
                 continue
         return []
 
     try:
-        result['atp'] = fetch_tour(_ODDS_SPORT_KEYS['atp'])
-        result['wta'] = fetch_tour(_ODDS_SPORT_KEYS['wta'])
+        keys = _discover_wimbledon_keys()
+        result['atp'] = fetch_tour(keys.get('atp', []))
+        result['wta'] = fetch_tour(keys.get('wta', []))
         if not result['atp'] and not result['wta']:
             result['error'] = 'No Wimbledon markets found yet — check back closer to the tournament'
     except Exception as e:
