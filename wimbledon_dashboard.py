@@ -378,9 +378,9 @@ body {
       <ul id="members-list"></ul>
     </div>
     <div class="modal-footer">
-      <button id="copy-btn" onclick="copyShareLink()">🔗 Copy share link</button>
+      <button id="invite-btn" onclick="copyInviteLink()" style="width:100%;padding:10px;border-radius:8px;cursor:pointer;font-family:sans-serif;font-size:0.9rem;font-weight:600;border:none;background:#4b006e;color:#fff;margin-bottom:8px;">📋 Copy Invite Link</button>
       <button id="save-btn" onclick="saveAndClose()">Save &amp; Refresh</button>
-      <div class="modal-hint">Usernames must match exactly what's on served.bracket.tennis</div>
+      <div class="modal-hint">Share the invite link — anyone who opens it sees the full group</div>
     </div>
   </div>
 </div>
@@ -601,14 +601,14 @@ function saveAndClose() {
   loadData();
 }
 
-async function copyShareLink() {
+async function copyInviteLink() {
   saveMembers();
   const link = location.origin + location.pathname + '?m=' + members.map(encodeURIComponent).join(',');
   try {
     await navigator.clipboard.writeText(link);
-    const btn = document.getElementById('copy-btn');
+    const btn = document.getElementById('invite-btn');
     btn.textContent = '✓ Copied!';
-    setTimeout(() => btn.textContent = '🔗 Copy share link', 2000);
+    setTimeout(() => btn.textContent = '📋 Copy Invite Link', 2000);
   } catch(e) { prompt('Copy this link:', link); }
 }
 
