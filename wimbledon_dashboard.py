@@ -340,7 +340,6 @@ body {
   <div class="hero-pills">
     <span class="hero-pill">🎾 Men's &amp; Women's Draw</span>
     <span class="hero-pill gold">🏅 served.bracket.tennis</span>
-    <span class="hero-pill">🎾 Page &amp; Will's Wimbledon Challenge</span>
   </div>
 </div>
 
@@ -418,7 +417,7 @@ body {
         <div class="card-sub" id="summary-updated">Refreshes hourly</div>
       </div>
     </div>
-    <div id="summary-body" style="padding:20px 24px;font-family:'EB Garamond',Georgia,serif;font-size:1.05rem;line-height:1.7;color:#2a2a2a;min-height:80px;">
+    <div id="summary-body" style="padding:14px 20px;font-family:'EB Garamond',Georgia,serif;font-size:0.97rem;line-height:1.6;color:#2a2a2a;">
       <span style="color:#aaa;font-family:sans-serif;font-size:0.85rem;">Loading today's recap…</span>
     </div>
   </div>
@@ -436,7 +435,11 @@ body {
           } else if (data.error) {
             el.innerHTML = '<span style="color:#aaa;font-family:sans-serif;font-size:0.82rem;">Recap unavailable — ' + data.error + '</span>';
           } else if (data.summary) {
-            el.textContent = data.summary;
+            var text = data.summary;
+            var html = text
+              .replace(/WOMEN'S:/g, '<strong style="font-family:sans-serif;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:#6b1a6b;">Women\'s</strong><br>')
+              .replace(/MEN'S:/g,   '<strong style="font-family:sans-serif;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:#00512e;margin-top:8px;display:block;">Men\'s</strong><br>');
+            el.innerHTML = html;
             if (data.updated) upd.textContent = 'Updated · ' + data.updated;
           }
         })
@@ -1470,9 +1473,10 @@ def _fetch_ai_summary():
 
     prompt = (
         f"You are a concise tennis writer covering Wimbledon {today}. "
-        f"Write exactly 4 sentences recapping today's action — 2 sentences on the Women's draw first, then 2 sentences on the Men's draw. "
-        f"Each sentence should highlight the most notable result, upset, or storyline from that draw. "
-        f"Keep it punchy and conversational, like a group chat message to tennis fans. No headers, no bullet points — just 4 flowing sentences.\n\n"
+        f"Write a daily recap in this exact format — no extra text, no intro:\n"
+        f"WOMEN'S: [2 punchy sentences on the Women's draw]\n"
+        f"MEN'S: [2 punchy sentences on the Men's draw]\n"
+        f"Focus on the most notable results, upsets, and storylines. Keep it conversational.\n\n"
         f"Match results today:\n{results_text}\n\n"
         f"News context:\n{news_text[:1000]}"
     )
