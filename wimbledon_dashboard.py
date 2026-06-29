@@ -196,9 +196,10 @@ body {
 }
 .lb-table th.right, .lb-table td.right { text-align: right; }
 .lb-table td {
-  padding: 13px 14px; border-bottom: 1px solid var(--border);
+  padding: 13px 10px; border-bottom: 1px solid var(--border);
   font-size: 0.92rem; vertical-align: middle;
 }
+.lb-table td:nth-child(2) { max-width: 130px; }
 .lb-table tr:last-child td { border-bottom: none; }
 .lb-table tr:hover td { background: #f9f6ef; }
 
@@ -388,8 +389,8 @@ body {
     <table class="lb-table" style="min-width:560px;">
       <thead>
         <tr>
-          <th>#</th>
-          <th>Player</th>
+          <th style="width:32px;">#</th>
+          <th style="width:130px;">Player</th>
           <th>Men's</th>
           <th>Women's</th>
           <th class="right">Combined</th>
