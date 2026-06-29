@@ -340,7 +340,7 @@ body {
 <!-- HERO -->
 <div class="hero">
   <div class="hero-inner">
-    <div class="hero-trophy">🏆</div>
+    <div class="hero-trophy"><img src="https://upload.wikimedia.org/wikipedia/en/thumb/b/b9/Wimbledon.svg/250px-Wimbledon.svg.png" alt="Wimbledon" style="height:60px;width:auto;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));"></div>
     <div class="hero-text">
       <div class="hero-title">Wimbledon <span>2026</span></div>
       <div class="hero-subtitle">The Championships · Bracket Pick'em</div>
