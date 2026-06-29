@@ -386,15 +386,15 @@ body {
       </div>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <table class="lb-table" style="min-width:560px;">
+    <table class="lb-table" style="min-width:340px;width:100%;table-layout:fixed;">
       <thead>
         <tr>
-          <th style="width:32px;">#</th>
-          <th style="width:130px;">Player</th>
-          <th>Men's</th>
-          <th>Women's</th>
-          <th class="right">Combined</th>
-          <th class="right">Max Pts</th>
+          <th style="width:8%;">#</th>
+          <th style="width:30%;">Player</th>
+          <th style="width:15%;text-align:center;">Men's</th>
+          <th style="width:15%;text-align:center;">Women's</th>
+          <th style="width:16%;text-align:center;">Combined</th>
+          <th style="width:16%;text-align:center;">Max Pts</th>
         </tr>
       </thead>
       <tbody id="lb-body">
@@ -860,11 +860,11 @@ function render() {
       : `<span class="score-pill pill-none">–</span>`;
     return `<tr>
       <td class="rank-cell ${rank<=3?'gold':''}">${rank<=3?['🥇','🥈','🥉'][rank-1]:rank}</td>
-      <td>
-        <div class="player-name"><a class="name-link" href="${bracketUrl}" target="_blank" rel="noopener" style="color:${c.primary}">${esc(p.username)}</a></div>
+      <td style="overflow:hidden;">
+        <div class="player-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a class="name-link" href="${bracketUrl}" target="_blank" rel="noopener" style="color:${c.primary}">${esc(p.username)}</a></div>
         <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${c.primary}"></div></div>
       </td>
-      <td>${atpPill}</td><td>${wtaPill}</td><td class="right">${combPill}</td><td class="right">${maxPill}</td>
+      <td style="text-align:center;">${atpPill}</td><td style="text-align:center;">${wtaPill}</td><td style="text-align:center;">${combPill}</td><td style="text-align:center;">${maxPill}</td>
     </tr>`;
   }).join('');
 
