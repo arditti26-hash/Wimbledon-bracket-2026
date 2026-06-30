@@ -328,7 +328,14 @@ body {
 <div class="topbar">
   <div class="topbar-left">
     <span class="topbar-flag">🇬🇧</span>
-    <span>Wimbledon 2026 · All England Club</span>
+    <span style="display:inline-flex;flex-direction:column;width:22px;height:14px;border-radius:2px;overflow:hidden;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,0.4);">
+      <span style="flex:1;background:#4b006e;"></span>
+      <span style="flex:1;background:#006b3c;"></span>
+      <span style="flex:1;background:#4b006e;"></span>
+      <span style="flex:1;background:#006b3c;"></span>
+      <span style="flex:1;background:#4b006e;"></span>
+    </span>
+    <span>Wimbledon 2026</span>
   </div>
   <div class="topbar-right">
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
@@ -344,7 +351,7 @@ body {
     <div class="hero-trophy"><img src="https://upload.wikimedia.org/wikipedia/en/thumb/b/b9/Wimbledon.svg/250px-Wimbledon.svg.png" alt="Wimbledon" style="height:60px;width:auto;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));"></div>
     <div class="hero-text">
       <div class="hero-title">Wimbledon <span>2026</span></div>
-      <div class="hero-subtitle">The Championships · Bracket Pick'em</div>
+      <div class="hero-subtitle">The Championships · All England Club</div>
     </div>
   </div>
   <div class="hero-pills">
