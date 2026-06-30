@@ -1392,6 +1392,19 @@ def _fetch_espn_live(tour):
     return result
 
 
+# ── Wimbledon daily schedule (BST = ET + 5 hours) ────────────────────────────
+_WIMBLEDON_SCHEDULE = """
+Wimbledon 2026 daily schedule (all times Eastern / ET):
+- Outside courts (Courts 2–18): play begins at 6:00 AM ET
+- Centre Court: play begins at 8:00 AM ET (first match ~8:00 AM, second ~10:00 AM, third ~12:00 PM)
+- Court 1: play begins at 8:00 AM ET (same cadence as Centre Court)
+- Evening session (Centre Court, select days): 2:00 PM ET
+- Matches last approximately 1.5–3 hours depending on format
+When referencing upcoming matches, use these times. If a match is listed as upcoming with no specific court,
+say it is scheduled to begin from 6:00 AM ET. If it is a high-profile match (finals, semis, quarters, or
+top seeds), it typically starts at 8:00 AM ET on Centre Court or Court 1.
+"""
+
 # ── Wimbledon odds (ESPN BET · sourced 2026-06-29) ───────────────────────────
 # Source: https://www.espn.com/betting/tennis/story/_/id/49072110/wimbledon-championship-odds-tennis-2026
 
@@ -1539,10 +1552,11 @@ def _fetch_ai_summary():
 
     prompt = (
         f"You are a witty tennis writer covering Wimbledon {today} (current time: {now_et.strftime('%I:%M %p ET')}). "
-        f"Write a ultra-concise daily update in this exact format — no intro, no extra text:\n\n"
-        f"WOMEN'S: [1 punchy sentence recapping the most notable Women's results using the scores] [1 specific sentence looking ahead {lookahead_label} — name the players and the stakes]\n"
-        f"MEN'S: [1 punchy sentence recapping the most notable Men's results using the scores] [1 specific sentence looking ahead {lookahead_label} — name the players and the stakes]\n\n"
-        f"Rules: Only use facts from the data below. Use scores to judge match quality. {lookahead_instruction} Never invent anything not in the data. Never use the word 'tonight' — if it is after 6 PM ET, always say 'tomorrow'.\n\n"
+        f"Write an ultra-concise daily update in this exact format — no intro, no extra text, no blank lines between sentences:\n\n"
+        f"WOMEN'S: [sentence 1: recap the day's most notable Women's result with score] [sentence 2: one more notable Women's result or story] [sentence 3: look ahead {lookahead_label} — most compelling Women's match, name players, include ET start time] [sentence 4: one more Women's match to watch {lookahead_label} with ET time]\n"
+        f"MEN'S: [sentence 1: recap the day's most notable Men's result with score] [sentence 2: one more notable Men's result or story] [sentence 3: look ahead {lookahead_label} — most compelling Men's match, name players, include ET start time] [sentence 4: one more Men's match to watch {lookahead_label} with ET time]\n\n"
+        f"Rules: Every sentence must be SHORT (under 20 words). Only use facts from the data below. Use scores to judge match quality. {lookahead_instruction} Never invent anything not in the data. Never use the word 'tonight' — if it is after 6 PM ET, always say 'tomorrow'. Always include the ET start time in looking-ahead sentences using the schedule below.\n\n"
+        f"Wimbledon schedule (ET times):\n{_WIMBLEDON_SCHEDULE}\n\n"
         f"Data:\n{results_text}\n\n"
         f"News context (extra storylines only):\n{news_text[:800]}"
     )
@@ -1550,7 +1564,7 @@ def _fetch_ai_summary():
     try:
         payload = json.dumps({
             'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 300,
+            'max_tokens': 450,
             'messages': [{'role': 'user', 'content': prompt}],
         }).encode()
         req = urllib.request.Request(
