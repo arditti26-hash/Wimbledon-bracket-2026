@@ -1542,35 +1542,42 @@ def _fetch_ai_summary():
     news_text    = _fetch_wimbledon_news()
     today        = _now_et().strftime('%B %d, %Y')
 
-    now_et   = _now_et()
-    hour_et  = now_et.hour
+    now_et      = _now_et()
+    hour_et     = now_et.hour
+    today_date  = now_et.strftime('%B %d, %Y')
+    tomorrow_et = now_et + timedelta(days=1)
+    tomorrow_date = tomorrow_et.strftime('%B %d, %Y')
+
     if hour_et < 18:
-        lookahead_instruction = (
-            "For the 'looking ahead' sentence: it is currently before 6 PM ET so focus on matches happening TODAY "
-            "— pick the most exciting ongoing or upcoming match from the upcoming list and explain why it matters right now."
+        lookahead_label = "today"
+        day_context = (
+            f"It is currently {now_et.strftime('%I:%M %p ET')} on {today_date}. "
+            f"For the looking-ahead sentences: ONLY reference matches that are scheduled for TODAY ({today_date}). "
+            "Use your knowledge of the Wimbledon order of play to determine which upcoming matches from the data are on today's schedule. "
+            "Do NOT reference any match scheduled for tomorrow or a future date. "
+            "Say 'today' when referencing these matches and include the BST/ET time."
         )
-        lookahead_label = "still to come today"
     else:
-        lookahead_instruction = (
-            "For the 'looking ahead' sentence: it is after 6 PM ET so today's play is mostly done — "
-            "look ahead to TOMORROW's most compelling matchups from the upcoming list and build anticipation. "
-            "IMPORTANT: Do NOT say 'tonight' — say 'tomorrow' instead."
-        )
         lookahead_label = "tomorrow"
+        day_context = (
+            f"It is currently {now_et.strftime('%I:%M %p ET')} on {today_date} — past 6 PM ET so today's play is done. "
+            f"For the looking-ahead sentences: ONLY reference matches scheduled for TOMORROW ({tomorrow_date}). "
+            "Use your knowledge of the Wimbledon order of play to determine which upcoming matches from the data are on tomorrow's schedule. "
+            "Do NOT reference any match already played today. "
+            "Say 'tomorrow' when referencing these matches and include the BST/ET time. Do NOT say 'tonight'."
+        )
 
     prompt = (
         f"You are a tennis writer covering Wimbledon {today}. Current time: {now_et.strftime('%I:%M %p ET')}.\n"
         f"Write an ultra-concise daily update in this exact format — no intro, no extra text, no blank lines between sentences:\n\n"
-        f"WOMEN'S: [sentence 1: recap today's most notable Women's result with score] [sentence 2: one more Women's result or storyline] [sentence 3: look ahead to {lookahead_label} — most compelling Women's match still to come, with ET start time] [sentence 4: one more Women's match to watch {lookahead_label} with ET start time]\n"
-        f"MEN'S: [sentence 1: recap today's most notable Men's result with score] [sentence 2: one more Men's result or storyline] [sentence 3: look ahead to {lookahead_label} — most compelling Men's match still to come, with ET start time] [sentence 4: one more Men's match to watch {lookahead_label} with ET start time]\n\n"
+        f"WOMEN'S: [sentence 1: recap today's most notable Women's result with score] [sentence 2: one more Women's result or storyline] [sentence 3: most compelling Women's match {lookahead_label} — name players, stakes, BST/ET time] [sentence 4: one more Women's match {lookahead_label} to watch with BST/ET time]\n"
+        f"MEN'S: [sentence 1: recap today's most notable Men's result with score] [sentence 2: one more Men's result or storyline] [sentence 3: most compelling Men's match {lookahead_label} — name players, stakes, BST/ET time] [sentence 4: one more Men's match {lookahead_label} to watch with BST/ET time]\n\n"
         f"Rules:\n"
         f"- Every sentence must be SHORT (under 20 words).\n"
         f"- Tone: engaging and specific, but measured. Avoid hyperbolic words like demolished, crushed, steamrolled, bagel, brutal, dominant, stunning.\n"
         f"- Only use facts from the data below. Never fabricate.\n"
-        f"- {lookahead_instruction}\n"
-        f"- CRITICAL: The current time is {now_et.strftime('%I:%M %p ET')}. Only reference upcoming matches whose ET start time is AFTER the current time. Do NOT reference matches that have already started or finished.\n"
-        f"- Never say 'tonight' — say 'today' or 'tomorrow' as appropriate.\n"
-        f"- Always include the match time in looking-ahead sentences using BST as reference, then subtract 5 hours for ET. Format: '1:00 PM BST (8:00 AM ET)'.\n\n"
+        f"- {day_context}\n"
+        f"- If you do include a match time, use BST as reference then subtract 5 hours for ET. Format: '1:00 PM BST (8:00 AM ET)'.\n\n"
         f"Wimbledon schedule (ET times):\n{_WIMBLEDON_SCHEDULE}\n\n"
         f"Data:\n{results_text}\n\n"
         f"News context (extra storylines only):\n{news_text[:800]}"
