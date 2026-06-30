@@ -1394,15 +1394,23 @@ def _fetch_espn_live(tour):
 
 # ── Wimbledon daily schedule (BST = ET + 5 hours) ────────────────────────────
 _WIMBLEDON_SCHEDULE = """
-Wimbledon 2026 daily schedule (all times Eastern / ET):
-- Outside courts (Courts 2–18): play begins at 6:00 AM ET
-- Centre Court: play begins at 8:00 AM ET (first match ~8:00 AM, second ~10:00 AM, third ~12:00 PM)
-- Court 1: play begins at 8:00 AM ET (same cadence as Centre Court)
-- Evening session (Centre Court, select days): 2:00 PM ET
-- Matches last approximately 1.5–3 hours depending on format
-When referencing upcoming matches, use these times. If a match is listed as upcoming with no specific court,
-say it is scheduled to begin from 6:00 AM ET. If it is a high-profile match (finals, semis, quarters, or
-top seeds), it typically starts at 8:00 AM ET on Centre Court or Court 1.
+Wimbledon 2026 official daily schedule (BST = British Summer Time, the local Wimbledon time):
+- Outside courts (Courts 2–18): play begins at 11:00 AM BST
+- Centre Court: first match at 1:00 PM BST, second ~3:30 PM BST, third ~6:00 PM BST
+- Court 1: first match at 1:00 PM BST, second ~3:30 PM BST, third ~6:00 PM BST
+- Evening session (Centre Court, select days): 7:00 PM BST
+
+Time conversion: BST is 5 hours ahead of US Eastern Time (ET).
+  11:00 AM BST = 6:00 AM ET
+  1:00 PM BST  = 8:00 AM ET
+  3:30 PM BST  = 10:30 AM ET
+  6:00 PM BST  = 1:00 PM ET
+  7:00 PM BST  = 2:00 PM ET
+
+When referencing upcoming matches, use BST as your reference for scheduling, then subtract 5 hours
+to get ET. Always show both: e.g. "1:00 PM BST (8:00 AM ET)".
+High-profile matches (top seeds, QF/SF/Final) are typically on Centre Court or Court 1 starting at 1:00 PM BST (8:00 AM ET).
+Outside-court matches for lower seeds typically begin at 11:00 AM BST (6:00 AM ET).
 """
 
 # ── Wimbledon odds (ESPN BET · sourced 2026-06-29) ───────────────────────────
@@ -1562,7 +1570,7 @@ def _fetch_ai_summary():
         f"- {lookahead_instruction}\n"
         f"- CRITICAL: The current time is {now_et.strftime('%I:%M %p ET')}. Only reference upcoming matches whose ET start time is AFTER the current time. Do NOT reference matches that have already started or finished.\n"
         f"- Never say 'tonight' — say 'today' or 'tomorrow' as appropriate.\n"
-        f"- Always include the ET start time in looking-ahead sentences using the schedule below.\n\n"
+        f"- Always include the match time in looking-ahead sentences using BST as reference, then subtract 5 hours for ET. Format: '1:00 PM BST (8:00 AM ET)'.\n\n"
         f"Wimbledon schedule (ET times):\n{_WIMBLEDON_SCHEDULE}\n\n"
         f"Data:\n{results_text}\n\n"
         f"News context (extra storylines only):\n{news_text[:800]}"
