@@ -1465,7 +1465,15 @@ def _fetch_news_text(url):
 
 
 def _fetch_wimbledon_news():
-    """Try multiple sources for Wimbledon headlines."""
+    """Try multiple sources for Wimbledon headlines and order of play."""
+    combined = ''
+    # Order of play first — gives AI the actual daily schedule
+    oop = _fetch_news_text('https://www.wimbledon.com/en_GB/draws_and_schedule/schedule/day1.html')
+    if not oop:
+        oop = _fetch_news_text('https://www.wimbledon.com/en_GB/draws_and_schedule/schedule.html')
+    if oop:
+        combined += 'ORDER OF PLAY:\n' + oop[:1500] + '\n\n'
+    # News headlines
     for url in [
         'https://www.bbc.com/sport/tennis/wimbledon',
         'https://www.bbc.co.uk/sport/tennis',
@@ -1473,8 +1481,9 @@ def _fetch_wimbledon_news():
     ]:
         text = _fetch_news_text(url)
         if text:
-            return text
-    return ''
+            combined += 'NEWS:\n' + text
+            break
+    return combined
 
 
 def _build_results_text():
@@ -1577,10 +1586,11 @@ def _fetch_ai_summary():
         f"- Tone: engaging and specific, but measured. Avoid hyperbolic words like demolished, crushed, steamrolled, bagel, brutal, dominant, stunning.\n"
         f"- Only use facts from the data below. Never fabricate.\n"
         f"- {day_context}\n"
-        f"- If you include a match time, show ET only (BST minus 5 hours). Format: '8:00 AM ET'. Never show BST.\n\n"
+        f"- If you include a match time, show ET only (BST minus 5 hours). Format: '8:00 AM ET'. Never show BST.\n"
+        f"- CRITICAL: If you are not 100% certain from the news context that a specific match is scheduled for {lookahead_label}, do NOT mention that match in the looking-ahead sentences. Skip it and pick one that IS confirmed. When in doubt, leave a match out.\n\n"
         f"Wimbledon schedule (ET times):\n{_WIMBLEDON_SCHEDULE}\n\n"
         f"Data:\n{results_text}\n\n"
-        f"News context (extra storylines only):\n{news_text[:800]}"
+        f"News context:\n{news_text[:2500]}"
     )
 
     try:
