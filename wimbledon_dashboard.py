@@ -417,10 +417,11 @@ body {
           <th>Mens</th>
           <th>Womens</th>
           <th>Max Pts</th>
+          <th>Global</th>
         </tr>
       </thead>
       <tbody id="lb-body">
-        <tr><td colspan="6" style="padding:32px;text-align:center;color:#aaa;font-family:sans-serif">Loading…</td></tr>
+        <tr><td colspan="7" style="padding:32px;text-align:center;color:#aaa;font-family:sans-serif">Loading…</td></tr>
       </tbody>
     </table>
     </div>
@@ -723,7 +724,7 @@ body {
     <div class="card-header" style="margin-bottom:0;">
       <div>
         <div class="card-title">📊 Wimbledon Odds</div>
-        <div class="card-sub">Outright winner · ESPN BET · updated June 29</div>
+        <div class="card-sub">Outright winner · DraftKings · updated June 30</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button id="odds-btn-atp" onclick="switchOddsTour('atp')"
@@ -918,13 +919,16 @@ function render() {
     const maxPill  = p.max_combined != null
       ? `<span style="font-size:0.78rem;color:#7d5a00;font-family:sans-serif;font-weight:600;">▲ ${p.max_combined.toLocaleString()}</span>`
       : `<span class="score-pill pill-none">–</span>`;
+    const globalPill = p.global_rank != null
+      ? `<span style="font-size:0.78rem;color:#4b006e;font-family:sans-serif;font-weight:700;">#${p.global_rank.toLocaleString()}</span>`
+      : `<span class="score-pill pill-none">–</span>`;
     return `<tr>
       <td class="rank-cell ${rank<=3?'gold':''}">${rank<=3?['🥇','🥈','🥉'][rank-1]:rank}</td>
       <td style="overflow:hidden;">
         <div class="player-name" style="white-space:nowrap;"><a class="name-link" href="${bracketUrl}" target="_blank" rel="noopener" style="color:${c.primary}">${esc(p.username)}</a></div>
         <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${c.primary}"></div></div>
       </td>
-      <td style="text-align:center;">${combPill}</td><td style="text-align:center;">${atpPill}</td><td style="text-align:center;">${wtaPill}</td><td style="text-align:center;">${maxPill}</td>
+      <td style="text-align:center;">${combPill}</td><td style="text-align:center;">${atpPill}</td><td style="text-align:center;">${wtaPill}</td><td style="text-align:center;">${maxPill}</td><td style="text-align:center;">${globalPill}</td>
     </tr>`;
   }).join('');
 
@@ -1393,28 +1397,28 @@ def _fetch_espn_live(tour):
 
 _STATIC_ODDS = {
     'atp': [
-        ('-175',  'Jannik Sinner'),
+        ('-165',  'Jannik Sinner'),
         ('+700',  'Novak Djokovic'),
-        ('+1400', 'Alexander Zverev'),
-        ('+1600', 'Ben Shelton'),
-        ('+2000', 'Taylor Fritz'),
+        ('+1000', 'Alexander Zverev'),
+        ('+1000', 'Taylor Fritz'),
+        ('+2200', 'Ben Shelton'),
+        ('+3500', 'Alex De Minaur'),
+        ('+3500', 'Matteo Berrettini'),
+        ('+3500', 'Daniil Medvedev'),
+        ('+4000', 'Tommy Paul'),
         ('+4000', 'Jakub Mensik'),
-        ('+5000', 'Alexander Bublik'),
-        ('+5000', 'Matteo Berrettini'),
-        ('+5000', 'Daniil Medvedev'),
-        ('+5000', 'Tommy Paul'),
     ],
     'wta': [
-        ('+350',  'Aryna Sabalenka'),
+        ('+300',  'Aryna Sabalenka'),
         ('+600',  'Elena Rybakina'),
         ('+900',  'Iga Swiatek'),
-        ('+1000', 'Jessica Pegula'),
         ('+1000', 'Mirra Andreeva'),
-        ('+1300', 'Coco Gauff'),
-        ('+1400', 'Madison Keys'),
-        ('+1500', 'Amanda Anisimova'),
-        ('+2500', 'Naomi Osaka'),
-        ('+2500', 'Linda Noskova'),
+        ('+1000', 'Jessica Pegula'),
+        ('+1200', 'Amanda Anisimova'),
+        ('+1700', 'Coco Gauff'),
+        ('+1800', 'Karolina Muchova'),
+        ('+2000', 'Madison Keys'),
+        ('+2200', 'Linda Noskova'),
     ],
 }
 
@@ -1560,6 +1564,52 @@ def _fetch_dk_odds():
     return {'atp': _STATIC_ODDS['atp'], 'wta': _STATIC_ODDS['wta'], 'error': None}
 
 
+# ── Global leaderboard rank ───────────────────────────────────────────────────
+
+_global_rank_cache    = {}
+_global_rank_cache_ts = 0
+
+
+def _fetch_global_ranks():
+    """
+    Scrape served.bracket.tennis global combined leaderboard.
+    Returns {username_lower: rank} cached 10 minutes.
+    """
+    global _global_rank_cache, _global_rank_cache_ts
+    now = time.time()
+    if _global_rank_cache and now - _global_rank_cache_ts < 600:
+        return _global_rank_cache
+    try:
+        url = f'https://served.bracket.tennis/tournaments/{TOURNAMENT_SLUG}/leaderboard'
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Accept': 'text/html',
+        })
+        with urllib.request.urlopen(req, timeout=15) as r:
+            html = r.read().decode('utf-8', errors='replace')
+        flat = _parse_flat_array(html)
+        ranks = {}
+        if flat:
+            # Find leaderboard entries: look for username strings near rank numbers
+            for i, item in enumerate(flat):
+                if isinstance(item, str) and item == 'rank':
+                    # Look nearby for username and rank value
+                    pass
+            # Fallback: regex scrape usernames in order from HTML
+            entries = re.findall(r'/tournaments/[^/]+/combined/brackets/([^"\'<>\s/]+)', html)
+            seen = []
+            for e in entries:
+                if e not in seen:
+                    seen.append(e)
+            for idx, username in enumerate(seen):
+                ranks[username.lower()] = idx + 1
+        _global_rank_cache = ranks
+        _global_rank_cache_ts = now
+    except Exception:
+        pass
+    return _global_rank_cache
+
+
 # Tournament data cache: shared draw+results across all users per request
 _tourney_cache    = {}
 _tourney_cache_ts = {}
@@ -1649,6 +1699,10 @@ def get_data(members=None):
         })
 
     players.sort(key=lambda p: (-(p['combined'] or -1), -(p['atp'] or -1)))
+
+    global_ranks = _fetch_global_ranks()
+    for p in players:
+        p['global_rank'] = global_ranks.get(p['username'].lower())
 
     return {
         'players': players,
