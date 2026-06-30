@@ -332,6 +332,7 @@ body {
   </div>
   <div class="topbar-right">
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <button onclick="location.reload()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.75rem;font-family:sans-serif;white-space:nowrap;">↻ Refresh</button>
     <button onclick="copyInviteLink()" id="invite-btn" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.75rem;font-family:sans-serif;white-space:nowrap;">🔗 Share</button>
     <button onclick="openModal()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.75rem;font-family:sans-serif;white-space:nowrap;">⚙ Group</button>
   </div>
@@ -425,6 +426,7 @@ body {
         <div class="card-title">🎙 Today at Wimbledon</div>
         <div class="card-sub" id="summary-updated">Refreshes hourly</div>
       </div>
+      <button onclick="loadSummary(true)" style="background:var(--bg);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.75rem;font-family:sans-serif;">↻ Refresh</button>
     </div>
     <div id="summary-body" style="padding:14px 20px;font-family:'EB Garamond',Georgia,serif;font-size:0.97rem;line-height:1.6;color:#2a2a2a;">
       <span style="color:#aaa;font-family:sans-serif;font-size:0.85rem;">Loading today's recap…</span>
@@ -433,8 +435,9 @@ body {
 
   <script>
   (function(){
-    function loadSummary() {
-      fetch('/api/summary')
+    window.loadSummary = function(bust) {
+      var url = bust ? '/api/summary?bust=' + Date.now() : '/api/summary';
+      fetch(url)
         .then(function(r){ return r.json(); })
         .then(function(data){
           var el = document.getElementById('summary-body');
@@ -454,8 +457,8 @@ body {
         })
         .catch(function(){});
     }
-    loadSummary();
-    setInterval(loadSummary, 60 * 60 * 1000);
+    window.loadSummary(false);
+    setInterval(function(){ window.loadSummary(false); }, 60 * 60 * 1000);
   })();
   </script>
 
@@ -1477,7 +1480,10 @@ def _fetch_ai_summary():
     """
     global _summary_cache, _summary_cache_ts
     now = time.time()
-    if _summary_cache and now - _summary_cache_ts < 3600:
+    # Invalidate cache if it's from a previous calendar day (ET)
+    cache_date = datetime.fromtimestamp(_summary_cache_ts).strftime('%Y-%m-%d') if _summary_cache_ts else ''
+    today_date = _now_et().strftime('%Y-%m-%d')
+    if _summary_cache and now - _summary_cache_ts < 3600 and cache_date == today_date:
         return _summary_cache
 
     if not ANTHROPIC_API_KEY:
@@ -1700,6 +1706,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_body(str(e).encode(), 'text/plain', 500)
         elif self.path.startswith('/api/summary'):
             try:
+                if 'bust=' in self.path:
+                    global _summary_cache, _summary_cache_ts
+                    _summary_cache = {}
+                    _summary_cache_ts = 0
                 body = json.dumps(_fetch_ai_summary()).encode()
                 self.send_body(body, 'application/json')
             except Exception as e:
