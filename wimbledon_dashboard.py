@@ -1465,15 +1465,7 @@ def _fetch_news_text(url):
 
 
 def _fetch_wimbledon_news():
-    """Try multiple sources for Wimbledon headlines and order of play."""
-    combined = ''
-    # Order of play first — gives AI the actual daily schedule
-    oop = _fetch_news_text('https://www.wimbledon.com/en_GB/draws_and_schedule/schedule/day1.html')
-    if not oop:
-        oop = _fetch_news_text('https://www.wimbledon.com/en_GB/draws_and_schedule/schedule.html')
-    if oop:
-        combined += 'ORDER OF PLAY:\n' + oop[:1500] + '\n\n'
-    # News headlines
+    """Try multiple sources for Wimbledon headlines."""
     for url in [
         'https://www.bbc.com/sport/tennis/wimbledon',
         'https://www.bbc.co.uk/sport/tennis',
@@ -1481,9 +1473,8 @@ def _fetch_wimbledon_news():
     ]:
         text = _fetch_news_text(url)
         if text:
-            combined += 'NEWS:\n' + text
-            break
-    return combined
+            return text
+    return ''
 
 
 def _build_results_text():
@@ -1558,22 +1549,22 @@ def _fetch_ai_summary():
     tomorrow_date = tomorrow_et.strftime('%B %d, %Y')
 
     if hour_et < 18:
-        lookahead_label = "today"
+        lookahead_label = "upcoming"
         day_context = (
             f"It is currently {now_et.strftime('%I:%M %p ET')} on {today_date}. "
-            f"For the looking-ahead sentences: ONLY reference matches confirmed in the news context as being scheduled for TODAY ({today_date}). "
-            "Do NOT use your own knowledge to guess which matches are today — only use what the news context explicitly says. "
-            "If the news context does not confirm a match is today, do not reference it with a day label. "
-            "Say 'today' and include the ET time only for matches the news confirms are today."
+            "For the looking-ahead sentences: pick the two most compelling upcoming matches from the data. "
+            "If the news context explicitly confirms a match is today, say 'today' and include the ET time. "
+            "If you are not certain, just say 'in their upcoming match' — never guess a day or time. "
+            "Always write the looking-ahead sentences regardless — never refuse or ask for more info."
         )
     else:
-        lookahead_label = "tomorrow"
+        lookahead_label = "upcoming"
         day_context = (
             f"It is currently {now_et.strftime('%I:%M %p ET')} on {today_date} — past 6 PM ET so today's play is done. "
-            f"For the looking-ahead sentences: ONLY reference matches confirmed in the news context as being scheduled for TOMORROW ({tomorrow_date}). "
-            "Do NOT use your own knowledge to guess which matches are tomorrow — only use what the news context explicitly says. "
-            "If the news context does not confirm a match is tomorrow, do not reference it with a day label. "
-            "Say 'tomorrow' and include the ET time only for matches the news confirms are tomorrow. Do NOT say 'tonight'."
+            "For the looking-ahead sentences: pick the two most compelling upcoming matches from the data. "
+            "If the news context explicitly confirms a match is tomorrow, say 'tomorrow' and include the ET time. "
+            "If you are not certain, just say 'in their upcoming match' — never guess a day or time. "
+            "Never say 'tonight'. Always write the looking-ahead sentences regardless — never refuse or ask for more info."
         )
 
     prompt = (
@@ -1587,7 +1578,7 @@ def _fetch_ai_summary():
         f"- Only use facts from the data below. Never fabricate.\n"
         f"- {day_context}\n"
         f"- If you include a match time, show ET only (BST minus 5 hours). Format: '8:00 AM ET'. Never show BST.\n"
-        f"- CRITICAL: If you are not 100% certain from the news context that a specific match is scheduled for {lookahead_label}, do NOT mention that match in the looking-ahead sentences. Skip it and pick one that IS confirmed. When in doubt, leave a match out.\n\n"
+        f"- CRITICAL: Always produce the full update — never refuse or ask for more information. If day/time is uncertain, say 'in their upcoming match' instead of guessing.\n\n"
         f"Wimbledon schedule (ET times):\n{_WIMBLEDON_SCHEDULE}\n\n"
         f"Data:\n{results_text}\n\n"
         f"News context:\n{news_text[:2500]}"
