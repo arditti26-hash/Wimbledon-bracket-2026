@@ -1521,15 +1521,29 @@ def _fetch_ai_summary():
     news_text    = _fetch_wimbledon_news()
     today        = _now_et().strftime('%B %d, %Y')
 
+    now_et   = _now_et()
+    hour_et  = now_et.hour
+    if hour_et < 18:
+        lookahead_instruction = (
+            "For the 'looking ahead' sentence: it is currently before 6 PM ET so focus on matches happening TODAY "
+            "— pick the most exciting ongoing or upcoming match from the upcoming list and explain why it matters right now."
+        )
+        lookahead_label = "still to come today"
+    else:
+        lookahead_instruction = (
+            "For the 'looking ahead' sentence: it is after 6 PM ET so today's play is mostly done — "
+            "look ahead to TOMORROW's most compelling matchups from the upcoming list and build anticipation."
+        )
+        lookahead_label = "tomorrow"
+
     prompt = (
-        f"You are a witty tennis writer covering Wimbledon {today}. "
+        f"You are a witty tennis writer covering Wimbledon {today} (current time: {now_et.strftime('%I:%M %p ET')}). "
         f"Write a ultra-concise daily update in this exact format — no intro, no extra text:\n\n"
-        f"WOMEN'S: [1 punchy sentence recapping yesterday's key results using the scores] [1 specific sentence on the most exciting upcoming Women's matches — name the players and the stakes]\n"
-        f"MEN'S: [1 punchy sentence recapping yesterday's key results using the scores] [1 specific sentence on the most exciting upcoming Men's matches — name the players and the stakes]\n\n"
-        f"Rules: Only use facts from the data below. Use scores to judge match quality. "
-        f"For the 'looking ahead' sentence, pick the most compelling upcoming matchup from the upcoming list and explain why it matters. Never invent anything.\n\n"
+        f"WOMEN'S: [1 punchy sentence recapping the most notable Women's results using the scores] [1 specific sentence looking ahead {lookahead_label} — name the players and the stakes]\n"
+        f"MEN'S: [1 punchy sentence recapping the most notable Men's results using the scores] [1 specific sentence looking ahead {lookahead_label} — name the players and the stakes]\n\n"
+        f"Rules: Only use facts from the data below. Use scores to judge match quality. {lookahead_instruction} Never invent anything not in the data.\n\n"
         f"Data:\n{results_text}\n\n"
-        f"News context (for extra storylines only):\n{news_text[:800]}"
+        f"News context (extra storylines only):\n{news_text[:800]}"
     )
 
     try:
