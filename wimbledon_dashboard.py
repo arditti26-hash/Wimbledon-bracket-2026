@@ -1552,32 +1552,32 @@ def _fetch_ai_summary():
         lookahead_label = "today"
         day_context = (
             f"It is currently {now_et.strftime('%I:%M %p ET')} on {today_date}. "
-            f"For the looking-ahead sentences: ONLY reference matches that are scheduled for TODAY ({today_date}). "
-            "Use your knowledge of the Wimbledon order of play to determine which upcoming matches from the data are on today's schedule. "
-            "Do NOT reference any match scheduled for tomorrow or a future date. "
-            "Say 'today' when referencing these matches and include the BST/ET time."
+            f"For the looking-ahead sentences: ONLY reference matches confirmed in the news context as being scheduled for TODAY ({today_date}). "
+            "Do NOT use your own knowledge to guess which matches are today — only use what the news context explicitly says. "
+            "If the news context does not confirm a match is today, do not reference it with a day label. "
+            "Say 'today' and include the ET time only for matches the news confirms are today."
         )
     else:
         lookahead_label = "tomorrow"
         day_context = (
             f"It is currently {now_et.strftime('%I:%M %p ET')} on {today_date} — past 6 PM ET so today's play is done. "
-            f"For the looking-ahead sentences: ONLY reference matches scheduled for TOMORROW ({tomorrow_date}). "
-            "Use your knowledge of the Wimbledon order of play to determine which upcoming matches from the data are on tomorrow's schedule. "
-            "Do NOT reference any match already played today. "
-            "Say 'tomorrow' when referencing these matches and include the BST/ET time. Do NOT say 'tonight'."
+            f"For the looking-ahead sentences: ONLY reference matches confirmed in the news context as being scheduled for TOMORROW ({tomorrow_date}). "
+            "Do NOT use your own knowledge to guess which matches are tomorrow — only use what the news context explicitly says. "
+            "If the news context does not confirm a match is tomorrow, do not reference it with a day label. "
+            "Say 'tomorrow' and include the ET time only for matches the news confirms are tomorrow. Do NOT say 'tonight'."
         )
 
     prompt = (
         f"You are a tennis writer covering Wimbledon {today}. Current time: {now_et.strftime('%I:%M %p ET')}.\n"
         f"Write an ultra-concise daily update in this exact format — no intro, no extra text, no blank lines between sentences:\n\n"
-        f"WOMEN'S: [sentence 1: recap today's most notable Women's result with score] [sentence 2: one more Women's result or storyline] [sentence 3: most compelling Women's match {lookahead_label} — name players, stakes, BST/ET time] [sentence 4: one more Women's match {lookahead_label} to watch with BST/ET time]\n"
-        f"MEN'S: [sentence 1: recap today's most notable Men's result with score] [sentence 2: one more Men's result or storyline] [sentence 3: most compelling Men's match {lookahead_label} — name players, stakes, BST/ET time] [sentence 4: one more Men's match {lookahead_label} to watch with BST/ET time]\n\n"
+        f"WOMEN'S: [sentence 1: recap today's most notable Women's result with score] [sentence 2: one more Women's result or storyline] [sentence 3: most compelling Women's match {lookahead_label} — name players, stakes, ET time if confirmed] [sentence 4: one more Women's match {lookahead_label} to watch with ET time if confirmed]\n"
+        f"MEN'S: [sentence 1: recap today's most notable Men's result with score] [sentence 2: one more Men's result or storyline] [sentence 3: most compelling Men's match {lookahead_label} — name players, stakes, ET time if confirmed] [sentence 4: one more Men's match {lookahead_label} to watch with ET time if confirmed]\n\n"
         f"Rules:\n"
         f"- Every sentence must be SHORT (under 20 words).\n"
         f"- Tone: engaging and specific, but measured. Avoid hyperbolic words like demolished, crushed, steamrolled, bagel, brutal, dominant, stunning.\n"
         f"- Only use facts from the data below. Never fabricate.\n"
         f"- {day_context}\n"
-        f"- If you do include a match time, use BST as reference then subtract 5 hours for ET. Format: '1:00 PM BST (8:00 AM ET)'.\n\n"
+        f"- If you include a match time, show ET only (BST minus 5 hours). Format: '8:00 AM ET'. Never show BST.\n\n"
         f"Wimbledon schedule (ET times):\n{_WIMBLEDON_SCHEDULE}\n\n"
         f"Data:\n{results_text}\n\n"
         f"News context (extra storylines only):\n{news_text[:800]}"
