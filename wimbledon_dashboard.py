@@ -1532,7 +1532,8 @@ def _fetch_ai_summary():
     else:
         lookahead_instruction = (
             "For the 'looking ahead' sentence: it is after 6 PM ET so today's play is mostly done — "
-            "look ahead to TOMORROW's most compelling matchups from the upcoming list and build anticipation."
+            "look ahead to TOMORROW's most compelling matchups from the upcoming list and build anticipation. "
+            "IMPORTANT: Do NOT say 'tonight' — say 'tomorrow' instead."
         )
         lookahead_label = "tomorrow"
 
@@ -1541,7 +1542,7 @@ def _fetch_ai_summary():
         f"Write a ultra-concise daily update in this exact format — no intro, no extra text:\n\n"
         f"WOMEN'S: [1 punchy sentence recapping the most notable Women's results using the scores] [1 specific sentence looking ahead {lookahead_label} — name the players and the stakes]\n"
         f"MEN'S: [1 punchy sentence recapping the most notable Men's results using the scores] [1 specific sentence looking ahead {lookahead_label} — name the players and the stakes]\n\n"
-        f"Rules: Only use facts from the data below. Use scores to judge match quality. {lookahead_instruction} Never invent anything not in the data.\n\n"
+        f"Rules: Only use facts from the data below. Use scores to judge match quality. {lookahead_instruction} Never invent anything not in the data. Never use the word 'tonight' — if it is after 6 PM ET, always say 'tomorrow'.\n\n"
         f"Data:\n{results_text}\n\n"
         f"News context (extra storylines only):\n{news_text[:800]}"
     )
