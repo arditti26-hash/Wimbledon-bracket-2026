@@ -741,7 +741,7 @@ body {
       <div style="text-align:center;color:#aaa;font-size:0.85rem;font-family:sans-serif;padding:20px;">Loading odds…</div>
     </div>
     <div style="padding:8px 20px 14px;font-size:0.7rem;font-family:sans-serif;color:#aaa;text-align:right;">
-      Odds via ESPN BET · as of June 29, 2026 · must be 21+ · gambling problem? call 1-800-522-4700
+      Odds via DraftKings · must be 21+ · gambling problem? call 1-800-522-4700
     </div>
   </div>
 
@@ -1508,16 +1508,14 @@ def _fetch_ai_summary():
     today        = _now_et().strftime('%B %d, %Y')
 
     prompt = (
-        f"You are a witty, engaging tennis writer covering Wimbledon {today}. "
-        f"Write a punchy daily recap using ONLY the match results below — scores are included in parentheses. "
-        f"Use the scores to accurately describe matches (e.g. a 5-set match was a battle, a 6-3 6-2 6-1 win was dominant). "
-        f"NEVER invent or assume any detail not present in the results. Do not use the news context to describe match quality — use only the actual scores provided. "
-        f"Use this exact format — no intro, no extra text:\n"
-        f"WOMEN'S: [2 engaging sentences grounded in the Women's scores below]\n"
-        f"MEN'S: [2 engaging sentences grounded in the Men's scores below]\n"
-        f"If there are no results for a draw yet, say so in one fun sentence.\n\n"
+        f"You are a witty tennis writer covering Wimbledon {today}. "
+        f"Write a ultra-concise daily update in this exact format — no intro, no extra text, no headers beyond what's shown:\n\n"
+        f"WOMEN'S: [1 sentence recap of yesterday's results using scores provided] [1 sentence looking ahead based on who's still in the draw]\n"
+        f"MEN'S: [1 sentence recap of yesterday's results using scores provided] [1 sentence looking ahead based on who's still in the draw]\n\n"
+        f"Rules: Only use facts from the match results and scores below. Never invent match details. "
+        f"Use scores to judge match character (5 sets = battle, 6-1 6-0 = dominant). Keep each section to exactly 2 sentences.\n\n"
         f"Match results (with scores):\n{results_text}\n\n"
-        f"Additional news context (for storylines only, not match descriptions):\n{news_text[:1000]}"
+        f"News context (storylines only):\n{news_text[:800]}"
     )
 
     try:
