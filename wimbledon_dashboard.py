@@ -1457,13 +1457,13 @@ def _fetch_wimbledon_news():
 
 
 def _build_results_text():
-    """Build completed match results from bracket data, split by tour, including scores."""
-    atp_lines, wta_lines = [], []
+    """Build completed results and upcoming matches from bracket data, split by tour."""
+    atp_done, wta_done = [], []
+    atp_upcoming, wta_upcoming = [], []
     round_names = {1:'R1',2:'R2',3:'R3',4:'R4',5:'QF',6:'SF',7:'Final'}
-    for tour, bucket in [('atp', atp_lines), ('wta', wta_lines)]:
+    for tour, done_bucket, upcoming_bucket in [('atp', atp_done, atp_upcoming), ('wta', wta_done, wta_upcoming)]:
         try:
             _, results, all_matches = _get_tournament_data(tour, MEMBERS)
-            # Build score lookup from all_matches
             score_lookup = {}
             for m in all_matches:
                 if m.get('winner') and m.get('score'):
@@ -1476,12 +1476,26 @@ def _build_results_text():
                 line   = f"{rname}: {winner} def. {loser}"
                 if score:
                     line += f" ({score})"
-                bucket.append(line)
+                done_bucket.append(line)
+            # Upcoming: matches not yet played where both players are known
+            completed_keys = set(results.keys())
+            for m in all_matches:
+                key = (m['round'], m['pos'])
+                if key in completed_keys:
+                    continue
+                if m.get('is_live'):
+                    continue
+                p1, p2 = m.get('p1'), m.get('p2')
+                if p1 and p2:
+                    rname = round_names.get(m['round'], f"R{m['round']}")
+                    upcoming_bucket.append(f"{rname}: {p1} vs {p2}")
         except Exception:
             pass
-    atp_text = "Men's results:\n" + '\n'.join(atp_lines[:20]) if atp_lines else "Men's results: none yet"
-    wta_text = "Women's results:\n" + '\n'.join(wta_lines[:20]) if wta_lines else "Women's results: none yet"
-    return wta_text + '\n\n' + atp_text
+    atp_text  = "Men's completed:\n" + '\n'.join(atp_done[:15]) if atp_done else "Men's completed: none yet"
+    wta_text  = "Women's completed:\n" + '\n'.join(wta_done[:15]) if wta_done else "Women's completed: none yet"
+    atp_ahead = "Men's upcoming:\n" + '\n'.join(atp_upcoming[:15]) if atp_upcoming else "Men's upcoming: none scheduled yet"
+    wta_ahead = "Women's upcoming:\n" + '\n'.join(wta_upcoming[:15]) if wta_upcoming else "Women's upcoming: none scheduled yet"
+    return wta_text + '\n\n' + wta_ahead + '\n\n' + atp_text + '\n\n' + atp_ahead
 
 
 def _fetch_ai_summary():
@@ -1509,13 +1523,13 @@ def _fetch_ai_summary():
 
     prompt = (
         f"You are a witty tennis writer covering Wimbledon {today}. "
-        f"Write a ultra-concise daily update in this exact format — no intro, no extra text, no headers beyond what's shown:\n\n"
-        f"WOMEN'S: [1 sentence recap of yesterday's results using scores provided] [1 sentence looking ahead based on who's still in the draw]\n"
-        f"MEN'S: [1 sentence recap of yesterday's results using scores provided] [1 sentence looking ahead based on who's still in the draw]\n\n"
-        f"Rules: Only use facts from the match results and scores below. Never invent match details. "
-        f"Use scores to judge match character (5 sets = battle, 6-1 6-0 = dominant). Keep each section to exactly 2 sentences.\n\n"
-        f"Match results (with scores):\n{results_text}\n\n"
-        f"News context (storylines only):\n{news_text[:800]}"
+        f"Write a ultra-concise daily update in this exact format — no intro, no extra text:\n\n"
+        f"WOMEN'S: [1 punchy sentence recapping yesterday's key results using the scores] [1 specific sentence on the most exciting upcoming Women's matches — name the players and the stakes]\n"
+        f"MEN'S: [1 punchy sentence recapping yesterday's key results using the scores] [1 specific sentence on the most exciting upcoming Men's matches — name the players and the stakes]\n\n"
+        f"Rules: Only use facts from the data below. Use scores to judge match quality. "
+        f"For the 'looking ahead' sentence, pick the most compelling upcoming matchup from the upcoming list and explain why it matters. Never invent anything.\n\n"
+        f"Data:\n{results_text}\n\n"
+        f"News context (for extra storylines only):\n{news_text[:800]}"
     )
 
     try:
