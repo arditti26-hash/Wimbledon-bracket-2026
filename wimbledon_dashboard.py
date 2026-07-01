@@ -1477,6 +1477,36 @@ def _fetch_wimbledon_news():
     return ''
 
 
+def _fetch_today_espn_scores():
+    """Fetch only today's completed match scores from ESPN, keyed by player name."""
+    scores = {}
+    today_str = _now_et().strftime('%Y%m%d')
+    for slug in ('atp', 'wta'):
+        for url in [
+            f'https://site.api.espn.com/apis/site/v2/sports/tennis/{slug}/scoreboard?dates={today_str}',
+            f'https://site.api.espn.com/apis/site/v2/sports/tennis/scoreboard?dates={today_str}',
+        ]:
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    data = json.loads(r.read().decode())
+                for event in data.get('events', []):
+                    for comp in event.get('competitions', []):
+                        winner, loser, score = None, None, ''
+                        for c in comp.get('competitors', []):
+                            name = c.get('athlete', {}).get('displayName', '') or c.get('displayName', '')
+                            if c.get('winner'):
+                                winner = name
+                                score = c.get('score', '')
+                            else:
+                                loser = name
+                        if winner and loser:
+                            scores[f"{winner} def. {loser}"] = score
+            except Exception:
+                continue
+    return scores
+
+
 def _build_results_text():
     """Build completed results and upcoming matches from bracket data, split by tour."""
     atp_done, wta_done = [], []
@@ -1498,7 +1528,6 @@ def _build_results_text():
                 if score:
                     line += f" ({score})"
                 done_bucket.append(line)
-            # Upcoming: matches not yet played where both players are known
             completed_keys = set(results.keys())
             for m in all_matches:
                 key = (m['round'], m['pos'])
@@ -1512,11 +1541,38 @@ def _build_results_text():
                     upcoming_bucket.append(f"{rname}: {p1} vs {p2}")
         except Exception:
             pass
-    atp_text  = "Men's completed:\n" + '\n'.join(atp_done[:15]) if atp_done else "Men's completed: none yet"
-    wta_text  = "Women's completed:\n" + '\n'.join(wta_done[:15]) if wta_done else "Women's completed: none yet"
+
+    # Pull today-only scores from ESPN to label which completed matches happened today
+    today_scores = _fetch_today_espn_scores()
+    today_names  = set()
+    for key in today_scores:
+        for part in key.split(' def. '):
+            today_names.add(part.strip().split()[-1].lower())  # last name match
+
+    def tag_today(lines):
+        tagged, rest = [], []
+        for line in lines:
+            low = line.lower()
+            if any(n in low for n in today_names):
+                tagged.append(line + ' [TODAY]')
+            else:
+                rest.append(line)
+        return tagged, rest
+
+    atp_today, atp_prev = tag_today(atp_done)
+    wta_today, wta_prev = tag_today(wta_done)
+
+    atp_text  = "Men's results TODAY:\n" + '\n'.join(atp_today[:15]) if atp_today else "Men's results today: none yet"
+    wta_text  = "Women's results TODAY:\n" + '\n'.join(wta_today[:15]) if wta_today else "Women's results today: none yet"
+    atp_prev_text = ("Men's previous results:\n" + '\n'.join(atp_prev[:10])) if atp_prev else ''
+    wta_prev_text = ("Women's previous results:\n" + '\n'.join(wta_prev[:10])) if wta_prev else ''
     atp_ahead = "Men's upcoming:\n" + '\n'.join(atp_upcoming[:15]) if atp_upcoming else "Men's upcoming: none scheduled yet"
     wta_ahead = "Women's upcoming:\n" + '\n'.join(wta_upcoming[:15]) if wta_upcoming else "Women's upcoming: none scheduled yet"
-    return wta_text + '\n\n' + wta_ahead + '\n\n' + atp_text + '\n\n' + atp_ahead
+
+    parts = [wta_text, wta_ahead, atp_text, atp_ahead]
+    if wta_prev_text: parts.insert(1, wta_prev_text)
+    if atp_prev_text: parts.insert(-1, atp_prev_text)
+    return '\n\n'.join(p for p in parts if p)
 
 
 def _fetch_ai_summary():
@@ -1576,6 +1632,7 @@ def _fetch_ai_summary():
         f"- Every sentence must be SHORT (under 20 words).\n"
         f"- Tone: engaging and specific, but measured. Avoid hyperbolic words like demolished, crushed, steamrolled, bagel, brutal, dominant, stunning.\n"
         f"- Only use facts from the data below. Never fabricate.\n"
+        f"- CRITICAL: For the recap sentences, ONLY reference matches tagged [TODAY] in the data. Do NOT recap matches from previous days even if they appear in the data.\n"
         f"- {day_context}\n"
         f"- If you include a match time, show ET only (BST minus 5 hours). Format: '8:00 AM ET'. Never show BST.\n"
         f"- CRITICAL: Always produce the full update — never refuse or ask for more information. If day/time is uncertain, say 'in their upcoming match' instead of guessing.\n\n"
