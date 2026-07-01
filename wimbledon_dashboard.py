@@ -1478,44 +1478,37 @@ def _fetch_wimbledon_news():
 
 
 def _fetch_today_espn_scores():
-    """Fetch only today's completed match results from ESPN as formatted strings."""
+    """Fetch today's completed Wimbledon match results from ESPN groupings structure."""
     lines = []
-    today_str = _now_et().strftime('%Y%m%d')
+    today_et   = _now_et()
+    today_date = today_et.strftime('%Y-%m-%d')
+    today_str  = today_et.strftime('%Y%m%d')
     seen = set()
-    for slug in ('atp', 'wta', ''):
-        path = f'tennis/{slug}/scoreboard' if slug else 'tennis/scoreboard'
-        url = f'https://site.api.espn.com/apis/site/v2/sports/{path}?dates={today_str}'
+
+    for slug in ('atp', 'wta'):
+        url = f'https://site.api.espn.com/apis/site/v2/sports/tennis/{slug}/scoreboard?dates={today_str}'
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=8) as r:
+            with urllib.request.urlopen(req, timeout=10) as r:
                 data = json.loads(r.read().decode())
             for event in data.get('events', []):
-                name = event.get('name', '')
-                if 'wimbledon' not in name.lower() and 'wimbledon' not in event.get('shortName','').lower():
-                    # also check competitions
-                    pass
-                for comp in event.get('competitions', []):
-                    status = comp.get('status', {}).get('type', {}).get('completed', False)
-                    competitors = comp.get('competitors', [])
-                    winner_name, loser_name, score_str = '', '', ''
-                    for c in competitors:
-                        n = (c.get('athlete', {}).get('displayName') or
-                             c.get('athlete', {}).get('fullName') or
-                             c.get('displayName', ''))
-                        sc = c.get('score', '')
-                        if c.get('winner'):
-                            winner_name = n
-                            score_str = sc
-                        else:
-                            loser_name = n
-                    if winner_name and loser_name:
-                        key = f"{winner_name}|{loser_name}"
-                        if key not in seen:
-                            seen.add(key)
-                            line = f"{winner_name} def. {loser_name}"
-                            if score_str:
-                                line += f" ({score_str})"
-                            lines.append(line)
+                for grouping in event.get('groupings', []):
+                    for comp in grouping.get('competitions', []):
+                        # Filter to today's matches only
+                        comp_date = comp.get('date', '')[:10]
+                        if comp_date != today_date:
+                            continue
+                        if not comp.get('status', {}).get('type', {}).get('completed'):
+                            continue
+                        # Result is in notes[0].text e.g. "Sinner (ITA) bt Kecmanovic (SRB) 4-6 6-3..."
+                        note = ''
+                        for n in comp.get('notes', []):
+                            if n.get('type') == 'event':
+                                note = n.get('text', '')
+                                break
+                        if note and note not in seen:
+                            seen.add(note)
+                            lines.append(note)
         except Exception:
             continue
     return lines
