@@ -1478,33 +1478,47 @@ def _fetch_wimbledon_news():
 
 
 def _fetch_today_espn_scores():
-    """Fetch only today's completed match scores from ESPN, keyed by player name."""
-    scores = {}
+    """Fetch only today's completed match results from ESPN as formatted strings."""
+    lines = []
     today_str = _now_et().strftime('%Y%m%d')
-    for slug in ('atp', 'wta'):
-        for url in [
-            f'https://site.api.espn.com/apis/site/v2/sports/tennis/{slug}/scoreboard?dates={today_str}',
-            f'https://site.api.espn.com/apis/site/v2/sports/tennis/scoreboard?dates={today_str}',
-        ]:
-            try:
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=8) as r:
-                    data = json.loads(r.read().decode())
-                for event in data.get('events', []):
-                    for comp in event.get('competitions', []):
-                        winner, loser, score = None, None, ''
-                        for c in comp.get('competitors', []):
-                            name = c.get('athlete', {}).get('displayName', '') or c.get('displayName', '')
-                            if c.get('winner'):
-                                winner = name
-                                score = c.get('score', '')
-                            else:
-                                loser = name
-                        if winner and loser:
-                            scores[f"{winner} def. {loser}"] = score
-            except Exception:
-                continue
-    return scores
+    seen = set()
+    for slug in ('atp', 'wta', ''):
+        path = f'tennis/{slug}/scoreboard' if slug else 'tennis/scoreboard'
+        url = f'https://site.api.espn.com/apis/site/v2/sports/{path}?dates={today_str}'
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                data = json.loads(r.read().decode())
+            for event in data.get('events', []):
+                name = event.get('name', '')
+                if 'wimbledon' not in name.lower() and 'wimbledon' not in event.get('shortName','').lower():
+                    # also check competitions
+                    pass
+                for comp in event.get('competitions', []):
+                    status = comp.get('status', {}).get('type', {}).get('completed', False)
+                    competitors = comp.get('competitors', [])
+                    winner_name, loser_name, score_str = '', '', ''
+                    for c in competitors:
+                        n = (c.get('athlete', {}).get('displayName') or
+                             c.get('athlete', {}).get('fullName') or
+                             c.get('displayName', ''))
+                        sc = c.get('score', '')
+                        if c.get('winner'):
+                            winner_name = n
+                            score_str = sc
+                        else:
+                            loser_name = n
+                    if winner_name and loser_name:
+                        key = f"{winner_name}|{loser_name}"
+                        if key not in seen:
+                            seen.add(key)
+                            line = f"{winner_name} def. {loser_name}"
+                            if score_str:
+                                line += f" ({score_str})"
+                            lines.append(line)
+        except Exception:
+            continue
+    return lines
 
 
 def _build_results_text():
@@ -1542,37 +1556,14 @@ def _build_results_text():
         except Exception:
             pass
 
-    # Pull today-only scores from ESPN to label which completed matches happened today
-    today_scores = _fetch_today_espn_scores()
-    today_names  = set()
-    for key in today_scores:
-        for part in key.split(' def. '):
-            today_names.add(part.strip().split()[-1].lower())  # last name match
+    # Today's results direct from ESPN (most reliable date-filtered source)
+    today_lines = _fetch_today_espn_scores()
+    today_section = "Today's completed matches (ESPN):\n" + '\n'.join(today_lines[:20]) if today_lines else "Today's completed matches: none confirmed yet via ESPN"
 
-    def tag_today(lines):
-        tagged, rest = [], []
-        for line in lines:
-            low = line.lower()
-            if any(n in low for n in today_names):
-                tagged.append(line + ' [TODAY]')
-            else:
-                rest.append(line)
-        return tagged, rest
+    atp_ahead = "Men's upcoming (bracket):\n" + '\n'.join(atp_upcoming[:15]) if atp_upcoming else "Men's upcoming: none scheduled yet"
+    wta_ahead = "Women's upcoming (bracket):\n" + '\n'.join(wta_upcoming[:15]) if wta_upcoming else "Women's upcoming: none scheduled yet"
 
-    atp_today, atp_prev = tag_today(atp_done)
-    wta_today, wta_prev = tag_today(wta_done)
-
-    atp_text  = "Men's results TODAY:\n" + '\n'.join(atp_today[:15]) if atp_today else "Men's results today: none yet"
-    wta_text  = "Women's results TODAY:\n" + '\n'.join(wta_today[:15]) if wta_today else "Women's results today: none yet"
-    atp_prev_text = ("Men's previous results:\n" + '\n'.join(atp_prev[:10])) if atp_prev else ''
-    wta_prev_text = ("Women's previous results:\n" + '\n'.join(wta_prev[:10])) if wta_prev else ''
-    atp_ahead = "Men's upcoming:\n" + '\n'.join(atp_upcoming[:15]) if atp_upcoming else "Men's upcoming: none scheduled yet"
-    wta_ahead = "Women's upcoming:\n" + '\n'.join(wta_upcoming[:15]) if wta_upcoming else "Women's upcoming: none scheduled yet"
-
-    parts = [wta_text, wta_ahead, atp_text, atp_ahead]
-    if wta_prev_text: parts.insert(1, wta_prev_text)
-    if atp_prev_text: parts.insert(-1, atp_prev_text)
-    return '\n\n'.join(p for p in parts if p)
+    return today_section + '\n\n' + wta_ahead + '\n\n' + atp_ahead
 
 
 def _fetch_ai_summary():
@@ -1632,7 +1623,7 @@ def _fetch_ai_summary():
         f"- Every sentence must be SHORT (under 20 words).\n"
         f"- Tone: engaging and specific, but measured. Avoid hyperbolic words like demolished, crushed, steamrolled, bagel, brutal, dominant, stunning.\n"
         f"- Only use facts from the data below. Never fabricate.\n"
-        f"- CRITICAL: For the recap sentences, ONLY reference matches tagged [TODAY] in the data. Do NOT recap matches from previous days even if they appear in the data.\n"
+        f"- CRITICAL: For the recap sentences, ONLY reference matches listed under \"Today's completed matches\" in the data. Do NOT recap matches from previous days.\n"
         f"- {day_context}\n"
         f"- If you include a match time, show ET only (BST minus 5 hours). Format: '8:00 AM ET'. Never show BST.\n"
         f"- CRITICAL: Always produce the full update — never refuse or ask for more information. If day/time is uncertain, say 'in their upcoming match' instead of guessing.\n\n"
