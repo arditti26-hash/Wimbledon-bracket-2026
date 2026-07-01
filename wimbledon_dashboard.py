@@ -1526,10 +1526,10 @@ def _fetch_ai_summary():
     """
     global _summary_cache, _summary_cache_ts
     now = time.time()
-    # Invalidate cache if it's from a previous calendar day (ET)
-    cache_date = datetime.fromtimestamp(_summary_cache_ts).strftime('%Y-%m-%d') if _summary_cache_ts else ''
+    # Invalidate cache if it's from a previous calendar day (ET) or older than 30 min
+    cache_date = datetime.fromtimestamp(_summary_cache_ts, tz=ZoneInfo('America/New_York')).strftime('%Y-%m-%d') if (_summary_cache_ts and ZoneInfo) else (datetime.utcfromtimestamp(_summary_cache_ts) - timedelta(hours=4)).strftime('%Y-%m-%d') if _summary_cache_ts else ''
     today_date = _now_et().strftime('%Y-%m-%d')
-    if _summary_cache and now - _summary_cache_ts < 3600 and cache_date == today_date:
+    if _summary_cache and now - _summary_cache_ts < 1800 and cache_date == today_date:
         return _summary_cache
 
     if not ANTHROPIC_API_KEY:
